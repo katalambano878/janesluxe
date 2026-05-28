@@ -1,0 +1,55 @@
+{
+  "name": "your-project-name",
+  "version": "1.0.0",
+  "description": "YOUR_PROJECT_DESCRIPTION",
+  "author": "YOUR_NAME <your@email.com>",
+  "license": "YOUR_LICENSE",
+  "homepage": "https://yourdomain.com",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/YOUR_USERNAME/YOUR_REPO_NAME.git"
+  },
+  "bugs": {
+    "url": "https://github.com/YOUR_USERNAME/YOUR_REPO_NAME/issues"
+  },
+  "keywords": [
+    "YOUR",
+    "KEYWORDS",
+    "HERE"
+  ],
+  "private": true,
+  "scripts": {
+    "build": "next build",
+    "dev": "cross-env NODE_ENV=development next dev -H 0.0.0.0 -p 3000",
+    "lint": "next lint",
+    "create-admin": "node scripts/create-admin.mjs",
+    "generate:seo": "node scripts/generate-seo-assets.mjs"
+  },
+  "dependencies": {
+    "@hello-pangea/dnd": "^18.0.1",
+    "@react-google-maps/api": "^2.19.3",
+    "@supabase/supabase-js": "^2.91.1",
+    "html2canvas": "^1.4.1",
+    "jspdf": "^4.2.0",
+    "next": "^15.5.12",
+    "pg": "^8.18.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "recharts": "^3.0.2",
+    "resend": "^6.9.1"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "autoprefixer": "^10.4.21",
+    "cross-env": "^7.0.3",
+    "eslint": "^8.57.1",
+    "eslint-config-next": "^15.0.0",
+    "postcss": "^8.5.5",
+    "sharp": "^0.34.5",
+    "tailwindcss": "^3.4.17",
+    "typescript": "5.9.3"
+  }
+}

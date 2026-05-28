@@ -1,0 +1,35 @@
+{
+  "name": "Jane's Luxe — Women's Footwear & Fashion",
+  "short_name": "Jane's Luxe",
+  "description": "Elegant heels, slippers, sneakers & dresses for modern Ghanaian women. Shop online with nationwide delivery.",
+  "start_url": "/?source=pwa",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#F7EFE8",
+  "theme_color": "#F7EFE8",
+  "dir": "ltr",
+  "lang": "en-GH",
+  "categories": ["shopping", "fashion", "lifestyle"],
+  "icons": [
+    {
+      "src": "/favicon/android-chrome-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/favicon/android-chrome-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/favicon/android-chrome-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "prefer_related_applications": false
+}

@@ -1,0 +1,606 @@
+@import url('https://cdnjs.cloudflare.com/ajax/libs/remixicon/4.5.0/remixicon.min.css');
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --brand-primary: #C89B7B;
+    --brand-secondary: #EAD8CB;
+    --brand-supporting: #E6C7B2;
+    --brand-accent: #D8B48A;
+    --brand-cream: #F7EFE8;
+    --brand-ivory: #FFF9F5;
+    --brand-text: #6B5246;
+    --brand-champagne: #D8B48A;
+  }
+
+  body {
+    @apply bg-brand-cream text-brand-text antialiased;
+  }
+
+  h1, h2, h3, h4 {
+    font-family: var(--font-playfair), serif;
+    letter-spacing: 0.01em;
+  }
+
+  p, a, button, span, li, input, textarea {
+    font-family: var(--font-manrope), sans-serif;
+  }
+}
+
+/* ========================================
+   ANIMATIONS & EFFECTS
+   ======================================== */
+
+/* Fade In Up Animation */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Fade In Animation */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* Fade In Left */
+@keyframes fadeInLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* Fade In Right */
+@keyframes fadeInRight {
+  from {
+    opacity: 0;
+    transform: translateX(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* Scale In */
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Slide Up */
+@keyframes slideUp {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+/* Float animation for decorative elements */
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-10px); }
+}
+
+/* Pulse glow */
+@keyframes pulseGlow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(0, 0, 0, 0.3); }
+  50% { box-shadow: 0 0 20px 10px rgba(0, 0, 0, 0); }
+}
+
+/* Shimmer effect for loading */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+/* ========================================
+   ANIMATION UTILITY CLASSES
+   ======================================== */
+
+.animate-fade-in {
+  animation: fadeIn 0.6s ease-out forwards;
+}
+
+.animate-fade-in-up {
+  animation: fadeInUp 0.6s ease-out forwards;
+}
+
+.animate-fade-in-left {
+  animation: fadeInLeft 0.6s ease-out forwards;
+}
+
+.animate-fade-in-right {
+  animation: fadeInRight 0.6s ease-out forwards;
+}
+
+.animate-scale-in {
+  animation: scaleIn 0.5s ease-out forwards;
+}
+
+.animate-float {
+  animation: float 3s ease-in-out infinite;
+}
+
+.animate-pulse-glow {
+  animation: pulseGlow 2s ease-in-out infinite;
+}
+
+/* Staggered delays for lists */
+.animate-delay-100 { animation-delay: 100ms; }
+.animate-delay-200 { animation-delay: 200ms; }
+.animate-delay-300 { animation-delay: 300ms; }
+.animate-delay-400 { animation-delay: 400ms; }
+.animate-delay-500 { animation-delay: 500ms; }
+.animate-delay-600 { animation-delay: 600ms; }
+.animate-delay-700 { animation-delay: 700ms; }
+.animate-delay-800 { animation-delay: 800ms; }
+
+/* Initial hidden state for scroll animations */
+.scroll-animate {
+  opacity: 0;
+  transform: translateY(30px);
+  transition: opacity 0.6s ease-out, transform 0.6s ease-out;
+}
+
+.scroll-animate.is-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.scroll-animate-left {
+  opacity: 0;
+  transform: translateX(-30px);
+  transition: opacity 0.6s ease-out, transform 0.6s ease-out;
+}
+
+.scroll-animate-left.is-visible {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.scroll-animate-right {
+  opacity: 0;
+  transform: translateX(30px);
+  transition: opacity 0.6s ease-out, transform 0.6s ease-out;
+}
+
+.scroll-animate-right.is-visible {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.scroll-animate-scale {
+  opacity: 0;
+  transform: scale(0.95);
+  transition: opacity 0.6s ease-out, transform 0.6s ease-out;
+}
+
+.scroll-animate-scale.is-visible {
+  opacity: 1;
+  transform: scale(1);
+}
+
+/* ========================================
+   HOVER EFFECTS
+   ======================================== */
+
+/* Card lift effect */
+.hover-lift {
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.hover-lift:hover {
+  transform: translateY(-8px);
+  box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.15);
+}
+
+/* Card grow effect */
+.hover-grow {
+  transition: transform 0.3s ease;
+}
+
+.hover-grow:hover {
+  transform: scale(1.03);
+}
+
+/* Image zoom on hover */
+.img-zoom {
+  overflow: hidden;
+}
+
+.img-zoom img {
+  transition: transform 0.5s ease;
+}
+
+.img-zoom:hover img {
+  transform: scale(1.1);
+}
+
+/* Shine effect on hover */
+.hover-shine {
+  position: relative;
+  overflow: hidden;
+}
+
+.hover-shine::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.3),
+    transparent
+  );
+  transition: left 0.5s ease;
+  z-index: 1;
+}
+
+.hover-shine:hover::before {
+  left: 100%;
+}
+
+/* Border glow on hover */
+.hover-glow {
+  transition: box-shadow 0.3s ease;
+}
+
+.hover-glow:hover {
+  box-shadow: 0 0 20px rgba(0, 0, 0, 0.25);
+}
+
+/* ========================================
+   BUTTON EFFECTS
+   ======================================== */
+
+.btn-animate {
+  position: relative;
+  overflow: hidden;
+  transition: all 0.3s ease;
+}
+
+.btn-animate::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  transition: width 0.6s ease, height 0.6s ease;
+}
+
+.btn-animate:hover::after {
+  width: 300px;
+  height: 300px;
+}
+
+.btn-animate:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 20px -10px rgba(0, 0, 0, 0.3);
+}
+
+.btn-animate:active {
+  transform: translateY(0);
+}
+
+/* ========================================
+   LOADING SKELETON
+   ======================================== */
+
+.skeleton {
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+/* ========================================
+   SMOOTH TRANSITIONS
+   ======================================== */
+
+/* Page transition wrapper */
+.page-transition {
+  animation: fadeIn 0.4s ease-out;
+}
+
+/* Smooth color transitions for interactive elements */
+a, button {
+  transition: color 0.2s ease, background-color 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+}
+
+/* Smooth image loading */
+img {
+  transition: opacity 0.3s ease;
+}
+
+/* ========================================
+   PARALLAX HELPER
+   ======================================== */
+
+.parallax-slow {
+  will-change: transform;
+}
+
+/* ========================================
+   GLASSMORPHISM
+   ======================================== */
+
+.glass {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.glass-dark {
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* ========================================
+   PWA - STANDALONE MODE OPTIMIZATIONS
+   ======================================== */
+
+/* Safe area insets for notched devices */
+.safe-area-top {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+
+.safe-area-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* Body-level PWA optimizations */
+.pwa-body {
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  overscroll-behavior-y: contain;
+}
+
+/* Standalone mode - full app feel */
+@media (display-mode: standalone) {
+  /* Remove browser-like elements, tighten the experience */
+  html {
+    overscroll-behavior: none;
+  }
+  
+  body {
+    overscroll-behavior-y: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+  
+  /* Allow text selection in inputs and text content */
+  input, textarea, [contenteditable], p, span, h1, h2, h3, h4, h5, h6, li, td, th, label, a {
+    -webkit-user-select: text;
+    user-select: text;
+  }
+
+  /* Add safe area top padding for the sticky header */
+  header.sticky {
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+
+  /* Ensure bottom nav has safe area */
+  nav[aria-label="Mobile navigation"] {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  /* Add bottom padding to main content for bottom nav */
+  main {
+    padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px));
+  }
+}
+
+/* Ensure bottom padding for mobile nav even in browser mode */
+@media (max-width: 1023px) {
+  main,
+  footer {
+    padding-bottom: 80px;
+  }
+}
+
+/* ========================================
+   PWA - ANIMATIONS FOR PROMPTS & TOASTS
+   ======================================== */
+
+/* Sheet slide up for install prompt */
+@keyframes sheetSlideUp {
+  from {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes backdropFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.pwa-prompt-sheet {
+  animation: sheetSlideUp 0.4s cubic-bezier(0.32, 0.72, 0, 1) forwards;
+}
+
+.pwa-prompt-backdrop {
+  animation: backdropFadeIn 0.3s ease-out forwards;
+}
+
+/* Update toast slide in */
+@keyframes toastSlideIn {
+  from {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.pwa-update-toast {
+  animation: toastSlideIn 0.4s cubic-bezier(0.32, 0.72, 0, 1) forwards;
+}
+
+/* ========================================
+   PWA - NATIVE-LIKE TOUCH INTERACTIONS
+   ======================================== */
+
+/* Haptic-like active state for all tappable elements */
+@media (hover: none) and (pointer: coarse) {
+  button:active,
+  a:active,
+  [role="button"]:active {
+    transform: scale(0.97);
+    transition: transform 0.1s ease;
+  }
+}
+
+/* Smooth momentum scrolling */
+.scroll-smooth-native {
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
+}
+
+/* Hide scrollbar for app-like feel on horizontal scrolls */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+/* ========================================
+   PWA - PULL TO REFRESH VISUAL INDICATOR
+   ======================================== */
+
+@keyframes pullRefreshSpin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.pull-refresh-spinner {
+  animation: pullRefreshSpin 0.8s linear infinite;
+}
+
+/* ========================================
+   PWA - PAGE TRANSITION EFFECT
+   ======================================== */
+
+@keyframes pageSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.pwa-page-enter {
+  animation: pageSlideIn 0.3s ease-out forwards;
+}
+
+/* ========================================
+   PWA - SPLASH SCREEN FALLBACK
+   ======================================== */
+
+@keyframes splashFadeOut {
+  from { opacity: 1; }
+  to { opacity: 0; visibility: hidden; }
+}
+
+.pwa-splash {
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #F5EADF 0%, #D7A7A0 100%);
+  animation: splashFadeOut 0.5s ease-out 1.5s forwards;
+}
+
+.pwa-splash-logo {
+  animation: scaleIn 0.6s cubic-bezier(0.32, 0.72, 0, 1) forwards;
+}
+
+@keyframes splashPulse {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 1; }
+}
+
+.pwa-splash-dots span {
+  animation: splashPulse 1.4s ease-in-out infinite;
+}
+
+.pwa-splash-dots span:nth-child(2) { animation-delay: 0.2s; }
+.pwa-splash-dots span:nth-child(3) { animation-delay: 0.4s; }
+
+/* ========================================
+   MINI-CART SLIDE-IN ANIMATION
+   ======================================== */
+
+@keyframes miniCartSlideIn {
+  from {
+    transform: translateX(100%);
+  }
+
+  to {
+    transform: translateX(0);
+  }
+}
+
+@keyframes miniCartBackdropIn {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+.mini-cart-panel {
+  animation: miniCartSlideIn 0.3s cubic-bezier(0.32, 0.72, 0, 1) forwards;
+}
+
+.mini-cart-backdrop {
+  animation: miniCartBackdropIn 0.2s ease-out forwards;
+}
