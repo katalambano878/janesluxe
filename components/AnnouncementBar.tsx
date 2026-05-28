@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { supabase } from '@/lib/supabase';
+import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import Link from 'next/link';
 
 interface Banner {
@@ -34,6 +34,7 @@ export default function AnnouncementBar() {
     }, [banners.length]);
 
     const fetchBanners = async () => {
+        if (!isSupabaseConfigured) return;
         try {
             const now = new Date().toISOString();
 

@@ -1,27 +1,28 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+
+/** Valid-format placeholders so the app never crashes on import when env is missing (e.g. Vercel). */
+const PLACEHOLDER_URL = 'https://placeholder.supabase.co';
+const PLACEHOLDER_ANON_KEY =
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0';
 
 function readEnv(name: string): string {
   const value = process.env[name]?.trim();
   return value && value.length > 0 ? value : '';
 }
 
-const isDev = process.env.NODE_ENV !== 'production';
+const configuredUrl = readEnv('NEXT_PUBLIC_SUPABASE_URL');
+const configuredKey = readEnv('NEXT_PUBLIC_SUPABASE_ANON_KEY');
 
-const supabaseUrl =
-  readEnv('NEXT_PUBLIC_SUPABASE_URL') ||
-  (isDev ? 'https://placeholder.supabase.co' : '');
+/** True when real Supabase keys are set in the environment. */
+export const isSupabaseConfigured = Boolean(configuredUrl && configuredKey);
 
-const supabaseKey =
-  readEnv('NEXT_PUBLIC_SUPABASE_ANON_KEY') ||
-  (isDev ? 'placeholder-anon-key' : '');
+const supabaseUrl = configuredUrl || PLACEHOLDER_URL;
+const supabaseKey = configuredKey || PLACEHOLDER_ANON_KEY;
 
-if (!supabaseUrl || !supabaseKey) {
-  throw new Error('Missing Supabase environment variables');
+if (!isSupabaseConfigured && typeof window !== 'undefined') {
+  console.warn(
+    "[Jane's Luxe] Supabase env vars missing. Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY in Vercel → Settings → Environment Variables, then redeploy."
+  );
 }
 
-/** True when real keys are configured (not local preview placeholders). */
-export const isSupabaseConfigured =
-  readEnv('NEXT_PUBLIC_SUPABASE_URL').length > 0 &&
-  readEnv('NEXT_PUBLIC_SUPABASE_ANON_KEY').length > 0;
-
-export const supabase = createClient(supabaseUrl, supabaseKey);
+export const supabase: SupabaseClient = createClient(supabaseUrl, supabaseKey);
