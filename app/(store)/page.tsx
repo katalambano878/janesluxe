@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useCMS } from '@/context/CMSContext';
+import { useBranch } from '@/context/BranchContext';
 import ProductCard, {
   type ColorVariant,
   getColorHex,
@@ -21,6 +22,7 @@ import {
 export default function Home() {
   usePageTitle('');
   const { getSetting, getActiveBanners } = useCMS();
+  const { branch, isReady: branchReady } = useBranch();
   const [featuredProducts, setFeaturedProducts] = useState<any[]>([]);
   const [featuredCategories, setFeaturedCategories] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -33,13 +35,17 @@ export default function Home() {
   const [currentHeroSlide, setCurrentHeroSlide] = useState(0);
 
   useEffect(() => {
+    // Wait for the branch selection to restore so we fetch branch-scoped stock
+    if (!branchReady) return;
+
     async function fetchData() {
       try {
+        const branchQuery = branch ? `&branch=${encodeURIComponent(branch.slug)}` : '';
         // Use storefront APIs (service-role backed on server) so admin-created
         // records always show publicly even if client-side RLS is strict.
         const [featuredProductsRes, allProductsRes, categoriesRes] = await Promise.all([
-          fetch('/api/storefront/products?featured=true&limit=12', { cache: 'no-store' }),
-          fetch('/api/storefront/products?limit=12', { cache: 'no-store' }),
+          fetch(`/api/storefront/products?featured=true&limit=12${branchQuery}`, { cache: 'no-store' }),
+          fetch(`/api/storefront/products?limit=12${branchQuery}`, { cache: 'no-store' }),
           fetch('/api/storefront/categories', { cache: 'no-store' }),
         ]);
 
@@ -81,7 +87,7 @@ export default function Home() {
     }
 
     fetchData();
-  }, []);
+  }, [branchReady, branch?.slug]);
 
   useEffect(() => {
     const media = window.matchMedia('(max-width: 767px)');

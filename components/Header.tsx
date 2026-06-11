@@ -9,6 +9,7 @@ import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { useCMS } from '@/context/CMSContext';
 import AnnouncementBar from './AnnouncementBar';
 import BrandLogo from './BrandLogo';
+import BranchPill from './BranchPill';
 import { SITE_NAME } from '@/lib/site-config';
 
 export default function Header() {
@@ -118,6 +119,8 @@ export default function Header() {
                   className="w-auto object-contain transition-all duration-500"
                   priority
                 />
+
+                <BranchPill />
               </div>
 
               <div className="hidden lg:flex items-center gap-0.5">

@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import CheckoutSteps from '@/components/CheckoutSteps';
 import OrderSummary from '@/components/OrderSummary';
 import { useCart } from '@/context/CartContext';
+import { useBranch } from '@/context/BranchContext';
 import { supabase } from '@/lib/supabase';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { useRecaptcha } from '@/hooks/useRecaptcha';
@@ -14,6 +15,7 @@ export default function CheckoutPage() {
   usePageTitle('Checkout');
   const router = useRouter();
   const { cart, subtotal: cartSubtotal, clearCart } = useCart();
+  const { branch } = useBranch();
 
   const [currentStep, setCurrentStep] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
@@ -169,6 +171,7 @@ export default function CheckoutPage() {
         .insert([{
           order_number: orderNumber,
           user_id: user?.id || null, // Capture user_id if logged in
+          branch_id: branch?.id || null,
           email: shippingData.email,
           phone: shippingData.phone,
           status: 'pending',
@@ -187,7 +190,9 @@ export default function CheckoutPage() {
             guest_checkout: !user,
             first_name: shippingData.firstName,
             last_name: shippingData.lastName,
-            tracking_number: trackingNumber
+            tracking_number: trackingNumber,
+            branch_name: branch?.name || null,
+            branch_slug: branch?.slug || null
           }
         }])
         .select()

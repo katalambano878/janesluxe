@@ -1,5 +1,12 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-admin';
+import {
+  BRANCH_INVENTORY_SELECT,
+  resolveBranchId,
+  getHiddenProductIdsForBranch,
+  applyBranchVisibilityFilter,
+  applyBranchQuantity,
+} from '@/lib/branch-server';
 
 const SEARCH_STOP_WORDS = new Set([
   'the',
@@ -43,8 +50,12 @@ export async function GET(request: Request) {
   const directCategorySlugs = categorySlugs !== 'all'
     ? categorySlugs.split(',').map((s) => s.trim()).filter(Boolean)
     : [];
+  const branchParam = searchParams.get('branch');
 
   try {
+    const branchId = await resolveBranchId(branchParam);
+    const hiddenIds = branchId ? await getHiddenProductIdsForBranch(branchId) : [];
+
     const runProductQuery = async (params: { nameSearch?: string; categoryFilterSlugs?: string[] }) => {
       const filterByCategory = Boolean(params.categoryFilterSlugs && params.categoryFilterSlugs.length > 0);
       // Left join when showing all products; inner join when filtering by category slug
@@ -59,11 +70,16 @@ export async function GET(request: Request) {
           *,
           ${categorySelect},
           product_images(url, position),
-          product_variants(id, name, price, quantity, option1, option2, image_url)
+          product_variants(id, name, price, quantity, option1, option2, image_url),
+          ${BRANCH_INVENTORY_SELECT}
         `,
           { count: 'exact' }
         )
         .eq('status', 'active');
+
+      if (branchId) {
+        query = applyBranchVisibilityFilter(query, hiddenIds);
+      }
 
       if (params.nameSearch?.trim()) {
         query = query.ilike('name', `%${params.nameSearch.trim()}%`);
@@ -174,8 +190,11 @@ export async function GET(request: Request) {
               });
 
               if (!fallbackError && (fallbackCount ?? 0) > 0) {
+                const fallbackPayload = branchId
+                  ? applyBranchQuantity(fallbackData || [], branchId)
+                  : (fallbackData || []);
                 return NextResponse.json(
-                  { data: fallbackData || [], count: fallbackCount ?? 0, searchFallback: 'category' },
+                  { data: fallbackPayload, count: fallbackCount ?? 0, searchFallback: 'category' },
                   {
                     headers: {
                       'Cache-Control': 'public, s-maxage=30, stale-while-revalidate=60',
@@ -190,7 +209,7 @@ export async function GET(request: Request) {
     }
 
     return NextResponse.json(
-      { data: data || [], count: count ?? 0 },
+      { data: branchId ? applyBranchQuantity(data || [], branchId) : (data || []), count: count ?? 0 },
       {
         headers: {
           'Cache-Control': 'public, s-maxage=30, stale-while-revalidate=60',

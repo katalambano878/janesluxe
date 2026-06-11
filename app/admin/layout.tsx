@@ -5,6 +5,8 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import BrandLogo from '@/components/BrandLogo';
+import { AdminBranchProvider } from '@/context/AdminBranchContext';
+import AdminBranchSwitcher from '@/components/admin/AdminBranchSwitcher';
 
 export default function AdminLayout({
   children,
@@ -352,6 +354,12 @@ export default function AdminLayout({
       permissionKey: 'inventory'
     },
     {
+      title: 'Branches',
+      icon: 'ri-store-2-line',
+      path: '/admin/branches',
+      permissionKey: 'branches'
+    },
+    {
       title: 'Analytics',
       icon: 'ri-bar-chart-line',
       path: '/admin/analytics',
@@ -441,13 +449,16 @@ export default function AdminLayout({
   const isPrint = pathname.includes('/print');
   if ((isPOS || isPrint) && isAuthenticated) {
     return (
-      <div className={isPOS ? "h-screen w-screen overflow-hidden bg-gray-100" : "bg-white min-h-screen"}>
-        {children}
-      </div>
+      <AdminBranchProvider>
+        <div className={isPOS ? "h-screen w-screen overflow-hidden bg-gray-100" : "bg-white min-h-screen"}>
+          {children}
+        </div>
+      </AdminBranchProvider>
     );
   }
 
   return (
+    <AdminBranchProvider>
     <div className="min-h-screen bg-brand-ivory text-brand-text">
 
       {/* Mobile Overlay */}
@@ -571,6 +582,8 @@ export default function AdminLayout({
             </button>
 
             <div className="flex items-center space-x-2 lg:space-x-4">
+              <AdminBranchSwitcher />
+
               <button className="relative w-10 h-10 flex items-center justify-center text-brand-text/70 hover:text-brand-text hover:bg-brand-primary/20 rounded-lg transition-colors cursor-pointer">
                 <i className="ri-notification-3-line text-xl"></i>
                 <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
@@ -612,5 +625,6 @@ export default function AdminLayout({
         </main>
       </div>
     </div>
+    </AdminBranchProvider>
   );
 }

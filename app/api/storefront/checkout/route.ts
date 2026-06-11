@@ -18,6 +18,7 @@ export async function POST(request: Request) {
       paymentMethod,
       shippingData,
       cart,
+      branch,
     } = body;
 
     if (!orderNumber || !cart?.length) {
@@ -30,6 +31,7 @@ export async function POST(request: Request) {
       .insert([{
         order_number: orderNumber,
         user_id: userId || null,
+        branch_id: branch?.id || null,
         email,
         phone,
         status: 'pending',
@@ -49,6 +51,8 @@ export async function POST(request: Request) {
           first_name: shippingData.firstName,
           last_name: shippingData.lastName,
           tracking_number: trackingNumber,
+          branch_name: branch?.name || null,
+          branch_slug: branch?.slug || null,
         },
       }])
       .select()

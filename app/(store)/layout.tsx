@@ -18,6 +18,8 @@ import LiveSalesNotification from '@/components/LiveSalesNotification';
 import ChatWidget from '@/components/ChatWidget';
 
 import { CMSProvider } from '@/context/CMSContext';
+import { BranchProvider } from '@/context/BranchContext';
+import BranchSelectorModal from '@/components/BranchSelectorModal';
 
 // Feature flag: control chat widget via env
 const CHAT_ENABLED =
@@ -71,6 +73,7 @@ export default function StoreLayout({
 
   return (
     <CMSProvider>
+      <BranchProvider>
       <Suspense fallback={null}>
         <NavigationProgress />
       </Suspense>
@@ -79,6 +82,7 @@ export default function StoreLayout({
         <PWASplash />
         <PWAInstaller />
         <Header />
+        <BranchSelectorModal />
         <ErrorBoundary>
           <div className="pwa-page-enter">
             {children}
@@ -96,6 +100,7 @@ export default function StoreLayout({
 
         {shouldShowChat && <ChatWidget />}
       </div>
+      </BranchProvider>
     </CMSProvider>
   );
 }

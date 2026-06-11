@@ -11,6 +11,7 @@ import { StructuredData, generateProductSchema, generateBreadcrumbSchema } from 
 import { SEO } from '@/lib/seo';
 import { notFound } from 'next/navigation';
 import { useCart } from '@/context/CartContext';
+import { useBranch } from '@/context/BranchContext';
 import { usePageTitle } from '@/hooks/usePageTitle';
 
 // Map common color names to hex values for the swatch preview
@@ -42,14 +43,19 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
   const [relatedProducts, setRelatedProducts] = useState<any[]>([]);
 
   const { addToCart } = useCart();
+  const { branch, isReady: branchReady } = useBranch();
 
   useEffect(() => {
+    // Wait for the branch selection to restore so we fetch branch-scoped stock
+    if (!branchReady) return;
+
     async function fetchProduct() {
       try {
         setLoading(true);
         // Fetch via storefront API (service role) so variants always load regardless of RLS
         let dataToTransform: any = null;
-        const res = await fetch(`/api/storefront/products/${encodeURIComponent(slug)}`, {
+        const branchQuery = branch ? `?branch=${encodeURIComponent(branch.slug)}` : '';
+        const res = await fetch(`/api/storefront/products/${encodeURIComponent(slug)}${branchQuery}`, {
           headers: { Accept: 'application/json' },
         });
         if (res.ok) {
@@ -190,7 +196,7 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
     if (slug) {
       fetchProduct();
     }
-  }, [slug]);
+  }, [slug, branchReady, branch?.slug]);
 
   const hasVariants = product?.variants?.length > 0;
   const hasColors = product?.colors?.length > 0;

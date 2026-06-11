@@ -5,6 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import ProductCard, { type ColorVariant, getColorHex } from '@/components/ProductCard';
 import PageHero from '@/components/PageHero';
+import { useBranch } from '@/context/BranchContext';
 
 function buildCategorySlugsParam(selectedSlug: string, categories: { id: string; slug: string; parent_id?: string | null }[]): string {
   if (selectedSlug === 'all') return 'all';
@@ -69,6 +70,7 @@ function formatShopProducts(data: any[]) {
 function ShopContent() {
   usePageTitle('Shop Products');
   const searchParams = useSearchParams();
+  const { branch, isReady: branchReady } = useBranch();
 
   // State
   const [products, setProducts] = useState<any[]>([]);
@@ -115,6 +117,9 @@ function ShopContent() {
 
   // Fetch products via storefront shop API (includes images + category filter)
   useEffect(() => {
+    // Wait for the branch selection to restore so we fetch branch-scoped stock
+    if (!branchReady) return;
+
     async function fetchProducts() {
       setLoading(true);
       try {
@@ -134,6 +139,7 @@ function ShopContent() {
           limit: String(productsPerPage),
         });
         if (search) params.set('search', search);
+        if (branch) params.set('branch', branch.slug);
 
         const res = await fetch(`/api/storefront/shop?${params.toString()}`, {
           cache: 'no-store',
@@ -156,7 +162,7 @@ function ShopContent() {
     }
 
     fetchProducts();
-  }, [selectedCategory, priceRange, selectedRating, sortBy, page, searchParams, categories]);
+  }, [selectedCategory, priceRange, selectedRating, sortBy, page, searchParams, categories, branchReady, branch?.slug]);
 
   const totalPages = Math.ceil(totalProducts / productsPerPage);
 

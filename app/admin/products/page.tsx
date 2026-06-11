@@ -3,10 +3,12 @@
 import Link from 'next/link';
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
+import { useAdminBranch } from '@/context/AdminBranchContext';
 
 const PLACEHOLDER_IMAGE = 'https://via.placeholder.com/300?text=No+Image';
 
 export default function ProductsPage() {
+  const { selectedBranch, loading: branchLoading } = useAdminBranch();
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
   const [sortBy, setSortBy] = useState('newest');
   const [searchQuery, setSearchQuery] = useState('');
@@ -32,10 +34,11 @@ export default function ProductsPage() {
   };
 
   useEffect(() => {
+    if (branchLoading) return;
     fetchProducts();
     fetchCategories();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- run when sortBy changes
-  }, [sortBy]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- run when sortBy or branch changes
+  }, [sortBy, branchLoading, selectedBranch?.id]);
 
   const fetchCategories = async () => {
     const { data } = await supabase.from('categories').select('name');
@@ -54,9 +57,19 @@ export default function ProductsPage() {
       const data = await res.json();
 
       if (data) {
-        setProducts(Array.isArray(data) ? data : []);
+        let list = Array.isArray(data) ? data : [];
 
-        const list = Array.isArray(data) ? data : [];
+        // When a branch is selected, show that branch's stock instead of the global total
+        if (selectedBranch) {
+          list = list.map((p: any) => {
+            const row = (p.branch_inventory || []).find((r: any) => r.branch_id === selectedBranch.id);
+            const branchQty = row?.quantity ?? 0;
+            return { ...p, quantity: branchQty, stock: branchQty };
+          });
+        }
+
+        setProducts(list);
+
         setStats({
           total: list.length,
           lowStock: list.filter((p: any) => p.quantity < (p.metadata?.low_stock_threshold || 5) && p.quantity > 0).length,
@@ -138,7 +151,15 @@ export default function ProductsPage() {
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Products</h1>
+          <h1 className="text-3xl font-bold text-gray-900">
+            Products
+            {selectedBranch && (
+              <span className="ml-3 inline-flex items-center gap-1 align-middle px-3 py-1 rounded-full bg-brand-primary/15 text-brand-text text-sm font-semibold">
+                <i className="ri-store-2-line" />
+                {selectedBranch.name}
+              </span>
+            )}
+          </h1>
           <p className="text-gray-600 mt-1">Manage your product catalog and inventory</p>
         </div>
         <div className="flex flex-col md:flex-row items-center gap-3">

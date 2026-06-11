@@ -3,8 +3,10 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
+import { useAdminBranch } from '@/context/AdminBranchContext';
 
 export default function InventoryManagementPage() {
+  const { selectedBranch, branches, loading: branchLoading } = useAdminBranch();
   const [searchTerm, setSearchTerm] = useState('');
   const [stockFilter, setStockFilter] = useState('all');
   const [showImportModal, setShowImportModal] = useState(false);
@@ -13,9 +15,16 @@ export default function InventoryManagementPage() {
   const [products, setProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // Inline branch-stock editing
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editValue, setEditValue] = useState('');
+  const [savingId, setSavingId] = useState<string | null>(null);
+
   useEffect(() => {
+    if (branchLoading) return;
     fetchInventory();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- refetch when branch changes
+  }, [branchLoading, selectedBranch?.id]);
 
   const fetchInventory = async () => {
     try {
@@ -28,7 +37,8 @@ export default function InventoryManagementPage() {
           sku,
           price,
           quantity,
-          categories(name)
+          categories(name),
+          branch_inventory(branch_id, quantity)
         `)
         .order('name');
 
@@ -36,10 +46,23 @@ export default function InventoryManagementPage() {
 
       if (data) {
         const mapped = data.map((p: any) => {
-          const stock = p.quantity || 0;
+          const branchRows: any[] = p.branch_inventory || [];
+          const branchRow = selectedBranch
+            ? branchRows.find((r: any) => r.branch_id === selectedBranch.id)
+            : null;
+          const stock = selectedBranch ? (branchRow?.quantity ?? 0) : (p.quantity || 0);
+
           let status = 'good';
           if (stock === 0) status = 'out';
           else if (stock < 10) status = 'low';
+
+          // Per-branch breakdown for the "All branches" view
+          const branchBreakdown = branches
+            .filter((b) => b.is_active)
+            .map((b) => ({
+              name: b.name,
+              quantity: branchRows.find((r: any) => r.branch_id === b.id)?.quantity ?? 0,
+            }));
 
           // categories is an array from the join
           const categoryData = p.categories as { name: string }[] | null;
@@ -49,6 +72,7 @@ export default function InventoryManagementPage() {
             sku: p.sku || 'N/A',
             category: categoryData?.[0]?.name || 'Uncategorized',
             currentStock: stock,
+            branchBreakdown,
             reorderLevel: 10, // Default
             reorderQuantity: 50, // Default
             price: p.price || 0,
@@ -63,6 +87,50 @@ export default function InventoryManagementPage() {
       console.error('Error fetching inventory:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const startEditing = (product: any) => {
+    if (!selectedBranch) return;
+    setEditingId(product.id);
+    setEditValue(String(product.currentStock));
+  };
+
+  const saveBranchStock = async (productId: string) => {
+    if (!selectedBranch) return;
+    const quantity = parseInt(editValue, 10);
+    if (!Number.isFinite(quantity) || quantity < 0) {
+      alert('Please enter a valid non-negative quantity.');
+      return;
+    }
+    try {
+      setSavingId(productId);
+      const res = await fetch('/api/admin/branch-inventory', {
+        method: 'PUT',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          branch_id: selectedBranch.id,
+          product_id: productId,
+          quantity,
+        }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json.error || 'Failed to update stock');
+
+      setProducts((prev) => prev.map((p) => {
+        if (p.id !== productId) return p;
+        let status = 'good';
+        if (quantity === 0) status = 'out';
+        else if (quantity < 10) status = 'low';
+        return { ...p, currentStock: quantity, status };
+      }));
+      setEditingId(null);
+    } catch (err: any) {
+      console.error('Failed to update branch stock:', err);
+      alert(err.message || 'Failed to update stock');
+    } finally {
+      setSavingId(null);
     }
   };
 
@@ -128,8 +196,20 @@ export default function InventoryManagementPage() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
           <div>
-            <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Inventory Management</h1>
-            <p className="text-gray-600 mt-1 md:mt-2 text-sm md:text-base">Track stock levels, manage reorders, and forecast demand</p>
+            <h1 className="text-2xl md:text-3xl font-bold text-gray-900">
+              Inventory Management
+              {selectedBranch && (
+                <span className="ml-3 inline-flex items-center gap-1 align-middle px-3 py-1 rounded-full bg-brand-primary/15 text-brand-text text-sm font-semibold">
+                  <i className="ri-store-2-line" />
+                  {selectedBranch.name}
+                </span>
+              )}
+            </h1>
+            <p className="text-gray-600 mt-1 md:mt-2 text-sm md:text-base">
+              {selectedBranch
+                ? `Stock levels at ${selectedBranch.name}. Click a stock number to edit it.`
+                : 'Totals across all branches. Select a branch in the top bar to view and edit its stock.'}
+            </p>
           </div>
           <Link
             href="/admin"
@@ -311,7 +391,56 @@ export default function InventoryManagementPage() {
                       <td className="px-6 py-4 text-gray-700">{product.sku}</td>
                       <td className="px-6 py-4 text-gray-700">{product.category}</td>
                       <td className="px-6 py-4">
-                        <span className="font-semibold text-gray-900">{product.currentStock}</span>
+                        {selectedBranch ? (
+                          editingId === product.id ? (
+                            <div className="flex items-center space-x-2">
+                              <input
+                                type="number"
+                                min={0}
+                                value={editValue}
+                                onChange={(e) => setEditValue(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') saveBranchStock(product.id);
+                                  if (e.key === 'Escape') setEditingId(null);
+                                }}
+                                autoFocus
+                                className="w-20 px-2 py-1 border-2 border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-gray-600 focus:border-gray-600"
+                              />
+                              <button
+                                onClick={() => saveBranchStock(product.id)}
+                                disabled={savingId === product.id}
+                                className="w-8 h-8 flex items-center justify-center text-green-600 hover:text-green-800 cursor-pointer disabled:opacity-50"
+                                title="Save"
+                              >
+                                <i className={savingId === product.id ? 'ri-loader-4-line animate-spin' : 'ri-check-line text-lg'}></i>
+                              </button>
+                              <button
+                                onClick={() => setEditingId(null)}
+                                className="w-8 h-8 flex items-center justify-center text-gray-500 hover:text-gray-700 cursor-pointer"
+                                title="Cancel"
+                              >
+                                <i className="ri-close-line text-lg"></i>
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => startEditing(product)}
+                              className="font-semibold text-gray-900 hover:text-brand-accent border-b border-dashed border-gray-400 cursor-pointer"
+                              title="Click to edit branch stock"
+                            >
+                              {product.currentStock}
+                            </button>
+                          )
+                        ) : (
+                          <div>
+                            <span className="font-semibold text-gray-900">{product.currentStock}</span>
+                            {product.branchBreakdown?.length > 0 && (
+                              <p className="text-xs text-gray-500 mt-1 whitespace-nowrap">
+                                {product.branchBreakdown.map((b: any) => `${b.name.replace(/\s*branch\s*$/i, '')}: ${b.quantity}`).join(' · ')}
+                              </p>
+                            )}
+                          </div>
+                        )}
                       </td>
                       <td className="px-6 py-4">
                         <span className="font-semibold text-gray-900">

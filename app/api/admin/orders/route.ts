@@ -49,6 +49,7 @@ export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const period = searchParams.get('period');
+    const branchId = searchParams.get('branch');
 
     // Sales stats mode
     if (period !== null) {
@@ -60,11 +61,12 @@ export async function GET(request: Request) {
 
       let query = supabaseAdmin
         .from('order_items')
-        .select(`quantity, product_name, product_id, variant_name, total_price, orders!inner(id, created_at, status, payment_status)`)
+        .select(`quantity, product_name, product_id, variant_name, total_price, orders!inner(id, created_at, status, payment_status, branch_id)`)
         .eq('orders.payment_status', 'paid')
         .neq('orders.status', 'cancelled');
 
       if (startDate) query = query.gte('orders.created_at', startDate);
+      if (branchId) query = query.eq('orders.branch_id', branchId);
 
       const { data, error } = await query;
       if (error) throw error;
@@ -72,7 +74,7 @@ export async function GET(request: Request) {
     }
 
     // Full orders list
-    const { data: ordersData, error } = await supabaseAdmin
+    let ordersQuery = supabaseAdmin
       .from('orders')
       .select(`
         id,
@@ -87,12 +89,21 @@ export async function GET(request: Request) {
         phone,
         shipping_address,
         metadata,
+        branch_id,
+        branches (
+          name,
+          slug
+        ),
         order_items (
           quantity,
           product_name
         )
       `)
       .order('created_at', { ascending: false });
+
+    if (branchId) ordersQuery = ordersQuery.eq('branch_id', branchId);
+
+    const { data: ordersData, error } = await ordersQuery;
 
     if (error) throw error;
     return NextResponse.json({ orders: ordersData || [] });

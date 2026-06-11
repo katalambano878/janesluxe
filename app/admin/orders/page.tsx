@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import ProductSalesStats from './ProductSalesStats';
+import { useAdminBranch } from '@/context/AdminBranchContext';
 
 interface Order {
   id: string;
@@ -18,6 +19,11 @@ interface Order {
   phone?: string;
   shipping_address?: any;
   metadata?: any;
+  branch_id?: string | null;
+  branches?: {
+    name: string;
+    slug: string;
+  } | null;
   profiles?: {
     full_name: string;
     email: string;
@@ -35,6 +41,7 @@ interface OrderStats {
 }
 
 export default function AdminOrdersPage() {
+  const { selectedBranch, loading: branchLoading } = useAdminBranch();
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [selectedOrders, setSelectedOrders] = useState<string[]>([]);
@@ -60,15 +67,17 @@ export default function AdminOrdersPage() {
   const [availableProducts, setAvailableProducts] = useState<string[]>([]);
 
   useEffect(() => {
+    if (branchLoading) return;
     fetchOrders();
-  }, []);
+  }, [branchLoading, selectedBranch?.id]);
 
   const fetchOrders = async () => {
     try {
       setLoading(true);
 
-      // Fetch orders via server-side API (bypasses RLS)
-      const res = await fetch('/api/admin/orders', { credentials: 'include' });
+      // Fetch orders via server-side API (bypasses RLS), scoped to branch if selected
+      const branchQuery = selectedBranch ? `?branch=${encodeURIComponent(selectedBranch.id)}` : '';
+      const res = await fetch(`/api/admin/orders${branchQuery}`, { credentials: 'include' });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || 'Failed to fetch orders');
       const ordersData = json.orders;
@@ -316,8 +325,20 @@ export default function AdminOrdersPage() {
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Orders</h1>
-          <p className="text-gray-600 mt-1">Manage and track all customer orders</p>
+          <h1 className="text-3xl font-bold text-gray-900">
+            Orders
+            {selectedBranch && (
+              <span className="ml-3 inline-flex items-center gap-1 align-middle px-3 py-1 rounded-full bg-brand-primary/15 text-brand-text text-sm font-semibold">
+                <i className="ri-store-2-line" />
+                {selectedBranch.name}
+              </span>
+            )}
+          </h1>
+          <p className="text-gray-600 mt-1">
+            {selectedBranch
+              ? `Orders placed at ${selectedBranch.name}`
+              : 'Manage and track all customer orders'}
+          </p>
         </div>
         <div className="flex items-center gap-3 w-full md:w-auto">
           <button
@@ -560,6 +581,12 @@ export default function AdminOrdersPage() {
                       <Link href={`/admin/orders/${order.id}`} className="text-gray-900 hover:text-gray-800 font-semibold whitespace-nowrap cursor-pointer">
                         {order.order_number || order.id.substring(0, 8)}
                       </Link>
+                      {!selectedBranch && order.branches?.name && (
+                        <p className="text-xs text-gray-500 mt-0.5 whitespace-nowrap">
+                          <i className="ri-store-2-line mr-1"></i>
+                          {order.branches.name}
+                        </p>
+                      )}
                     </td>
                     <td className="py-4 px-4">
                       <div className="flex items-center space-x-3">
@@ -636,7 +663,7 @@ export default function AdminOrdersPage() {
         )}
       </div>
 
-      <ProductSalesStats isOpen={showProductStats} onClose={() => setShowProductStats(false)} />
+      <ProductSalesStats isOpen={showProductStats} onClose={() => setShowProductStats(false)} branchId={selectedBranch?.id || null} />
     </div>
   );
 }

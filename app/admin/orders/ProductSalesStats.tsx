@@ -16,7 +16,7 @@ interface VariantDisplay {
     revenue: number;
 }
 
-export default function ProductSalesStats({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
+export default function ProductSalesStats({ isOpen, onClose, branchId }: { isOpen: boolean; onClose: () => void; branchId?: string | null }) {
     const [period, setPeriod] = useState<'24h' | '7d' | '30d' | 'all'>('7d');
     const [loading, setLoading] = useState(false);
     const [stats, setStats] = useState<(Omit<SalesStat, '_orderIds' | 'variants'> & { variants: VariantDisplay[] })[]>([]);
@@ -24,8 +24,8 @@ export default function ProductSalesStats({ isOpen, onClose }: { isOpen: boolean
 
     useEffect(() => {
         if (isOpen) fetchStats();
-        // eslint-disable-next-line react-hooks/exhaustive-deps -- run when isOpen or period changes
-    }, [isOpen, period]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- run when isOpen, period or branch changes
+    }, [isOpen, period, branchId]);
 
     const fetchStats = async () => {
         setLoading(true);
@@ -50,7 +50,8 @@ export default function ProductSalesStats({ isOpen, onClose }: { isOpen: boolean
         // 'all' leaves startDate as null
 
         try {
-            const res = await fetch(`/api/admin/orders?period=${period}`, { credentials: 'include' });
+            const branchQuery = branchId ? `&branch=${encodeURIComponent(branchId)}` : '';
+            const res = await fetch(`/api/admin/orders?period=${period}${branchQuery}`, { credentials: 'include' });
             const json = await res.json();
             if (!res.ok) throw new Error(json.error || 'Failed to fetch stats');
             const data = json.items;

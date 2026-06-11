@@ -103,7 +103,8 @@ export async function GET(request: Request) {
         *,
         categories(name),
         product_variants(count),
-        product_images(url, position)
+        product_images(url, position),
+        branch_inventory(branch_id, quantity)
       `);
 
     if (sortBy === 'newest') query = query.order('created_at', { ascending: false });
