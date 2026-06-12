@@ -1,6 +1,7 @@
 'use client';
 
 import { createContext, useContext, useEffect, useState, useCallback, ReactNode } from 'react';
+import { usePathname } from 'next/navigation';
 
 export interface Branch {
   id: string;
@@ -22,6 +23,7 @@ interface BranchContextType {
 }
 
 const STORAGE_KEY = 'selected_branch';
+const SESSION_PROMPT_KEY = 'branch_prompted';
 
 const BranchContext = createContext<BranchContextType | undefined>(undefined);
 
@@ -30,6 +32,19 @@ export function BranchProvider({ children }: { children: ReactNode }) {
   const [branch, setBranch] = useState<Branch | null>(null);
   const [isReady, setIsReady] = useState(false);
   const [isSelectorOpen, setIsSelectorOpen] = useState(false);
+  const pathname = usePathname();
+
+  // Ask every visitor which branch they want when they land on the homepage.
+  // Uses sessionStorage so the prompt shows once per browsing session instead
+  // of re-opening on every navigation back to the homepage.
+  useEffect(() => {
+    if (!isReady || branches.length < 2 || pathname !== '/') return;
+    try {
+      if (window.sessionStorage.getItem(SESSION_PROMPT_KEY)) return;
+      window.sessionStorage.setItem(SESSION_PROMPT_KEY, '1');
+    } catch { /* ignore */ }
+    setIsSelectorOpen(true);
+  }, [isReady, branches, pathname]);
 
   useEffect(() => {
     let isMounted = true;
