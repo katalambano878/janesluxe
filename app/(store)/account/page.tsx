@@ -294,7 +294,7 @@ function AccountContent() {
                             type="tel"
                             value={profileData.phone}
                             onChange={e => setProfileData({ ...profileData, phone: e.target.value })}
-                            placeholder="+234 XX XXXX XXXX"
+                            placeholder="+233 XX XXXX XXXX"
                             className="w-full pl-11 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-4 focus:ring-gray-50 focus:border-gray-600 transition-all bg-gray-50 focus:bg-white"
                           />
                         </div>

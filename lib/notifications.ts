@@ -106,16 +106,16 @@ export async function sendEmail({ to, subject, html }: { to: string; subject: st
     }
 }
 
-// Helper to format phone number for SMS (Nigeria +234)
+// Helper to format phone number for SMS (Ghana +233)
 function formatPhoneNumber(phone: string): string {
     let cleaned = phone.replace(/\D/g, '');
 
-    if (cleaned.startsWith('234')) {
-        // Already includes Nigeria country code
+    if (cleaned.startsWith('233')) {
+        // Already includes Ghana country code
     } else if (cleaned.startsWith('0')) {
-        cleaned = '234' + cleaned.substring(1);
-    } else if (cleaned.length === 10) {
-        cleaned = '234' + cleaned;
+        cleaned = '233' + cleaned.substring(1);
+    } else if (cleaned.length === 9) {
+        cleaned = '233' + cleaned;
     }
 
     return '+' + cleaned;

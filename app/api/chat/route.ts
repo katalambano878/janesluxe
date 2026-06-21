@@ -291,7 +291,7 @@ const LLM_TOOLS = [
           payment_method: {
             type: 'string',
             enum: ['paystack', 'cod'],
-            description: 'Payment method. paystack = online payment (card, bank transfer, USSD, mobile money), cod = Cash on Delivery (Lagos only)',
+            description: 'Payment method. paystack = online payment (card, bank transfer, USSD, mobile money), cod = Cash on Delivery (Accra only)',
           },
         },
         required: ['items', 'shipping', 'delivery_method', 'payment_method'],
@@ -345,8 +345,8 @@ WHEN CREATING SUPPORT TICKETS:
 STORE POLICIES (quick reference):
 - Delivery: Local and worldwide delivery available (timing depends on destination)
 - Returns: Within 30 days of delivery, unused items in original packaging
-- Payment: bank transfer, card payment, Cash on Delivery (Lagos only)
-- Support hours: Mon-Sat, 9 AM - 6 PM WAT
+- Payment: bank transfer, card payment, Cash on Delivery (Accra only)
+- Support hours: Mon-Sat, 9 AM - 6 PM GMT
 
 CAPABILITIES (what you CAN do):
 - Search and recommend products
@@ -372,12 +372,12 @@ You can help customers place orders directly in this chat. Here is how:
    - Phone number
    - Delivery address, city, and region
 3. Ask them to choose a delivery method:
-   - **Standard** — GH₵3,000 (1-3 business days in Lagos, 3-7 days outside)
-   - **Express** — GH₵6,000 (same-day/next-day in Lagos)
+   - **Standard** — GH₵20 (1-3 business days in Accra, 3-7 days outside)
+   - **Express** — GH₵40 (same-day/next-day in Accra)
    - **Pickup** — Free (collect from our location)
 4. Ask them to choose a payment method:
    - **Online payment** (card or bank transfer via checkout) — default
-   - **Cash on Delivery** — Lagos only
+   - **Cash on Delivery** — Accra only
 5. Summarize the order (items, subtotal, delivery fee, total) and ask the customer to confirm.
 6. Once confirmed, call the create_order tool with the cart items (product IDs and quantities from the cart context), shipping info, delivery method, and payment method.
 7. The tool will return a payment link (for online payment) — present it to the customer. For COD, just confirm the order is placed.
@@ -393,7 +393,7 @@ LIMITATIONS (what you CANNOT do directly):
 WHEN YOU CANNOT HELP OR ANSWER A QUESTION:
 If you genuinely cannot answer a question or resolve an issue (whether it's beyond your capabilities, the customer is frustrated, or anything else), you MUST do TWO things:
 1. AUTOMATICALLY create a support ticket using the create_support_ticket tool — don't just offer to, actually do it. Use whatever info the customer already provided (email, name, issue details).
-2. ALWAYS provide the customer with direct contact information for faster help. Share: Phone/WhatsApp YOUR_PHONE_NUMBER (YOUR_WHATSAPP_URL), email hello@yourdomain.com, Instagram @YOUR_HANDLE, or visit Lagos, Nigeria. Say something like: "I've created a support ticket for you. For a faster response, you can also reach us at YOUR_PHONE_NUMBER (call or WhatsApp) or hello@yourdomain.com."
+2. ALWAYS provide the customer with direct contact information for faster help. Share: Phone/WhatsApp YOUR_PHONE_NUMBER (YOUR_WHATSAPP_URL), email hello@yourdomain.com, Instagram @YOUR_HANDLE, or visit Accra, Ghana. Say something like: "I've created a support ticket for you. For a faster response, you can also reach us at YOUR_PHONE_NUMBER (call or WhatsApp) or hello@yourdomain.com."
 Never leave a customer stuck without a path forward.
 
 ${getSiteMapSummary()}`;
@@ -955,7 +955,7 @@ async function handleWithAI(
       } else if (couponCard) {
         assistantContent = `Here's the coupon information:`;
       } else {
-        assistantContent = `I'm sorry, I wasn't able to process that properly. You can try rephrasing your request, or for immediate help reach us at YOUR_PHONE_NUMBER (call or WhatsApp) or hello@yourdomain.com. Our team is available Mon-Sat, 9am-6pm WAT.`;
+        assistantContent = `I'm sorry, I wasn't able to process that properly. You can try rephrasing your request, or for immediate help reach us at YOUR_PHONE_NUMBER (call or WhatsApp) or hello@yourdomain.com. Our team is available Mon-Sat, 9am-6pm GMT.`;
       }
     }
 

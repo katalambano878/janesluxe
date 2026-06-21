@@ -173,7 +173,7 @@ export default function TermsPage() {
           <section className="mb-12">
             <h2 className="text-3xl font-bold text-gray-900 mb-6">6. Returns & Refunds</h2>
             <p className="text-gray-600 leading-relaxed mb-4">
-              We offer local and worldwide delivery options from Nigeria. Contact us for any order issues or product exchanges. See our Returns page for complete details.
+              We offer local and worldwide delivery options from Ghana. Contact us for any order issues or product exchanges. See our Returns page for complete details.
             </p>
             <p className="text-gray-600 leading-relaxed">
               Refunds are processed within 5-7 business days of receiving your return. Refunds are issued to the original payment method.
@@ -266,7 +266,7 @@ export default function TermsPage() {
           <section className="mb-12">
             <h2 className="text-3xl font-bold text-gray-900 mb-6">11. Governing Law & Disputes</h2>
             <p className="text-gray-600 leading-relaxed mb-4">
-              These terms are governed by the laws of Nigeria. Any disputes arising from these terms or your use of the website shall be subject to the exclusive jurisdiction of the courts of Nigeria.
+              These terms are governed by the laws of Ghana. Any disputes arising from these terms or your use of the website shall be subject to the exclusive jurisdiction of the courts of Ghana.
             </p>
             <p className="text-gray-600 leading-relaxed">
               Before initiating any legal action, you agree to first contact us to seek resolution through informal negotiation.
@@ -308,7 +308,7 @@ export default function TermsPage() {
                   <i className="ri-map-pin-line text-gray-900 text-xl mt-1"></i>
                   <div>
                     <p className="font-medium text-gray-900">Address</p>
-                    <p className="text-gray-600">YOUR_BRAND_NAME<br />Lagos, Nigeria</p>
+                    <p className="text-gray-600">YOUR_BRAND_NAME<br />Accra, Ghana</p>
                   </div>
                 </div>
               </div>

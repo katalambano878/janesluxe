@@ -35,45 +35,24 @@ export default function CheckoutPage() {
     region: ''
   });
 
-  // Nigerian states for dropdown
-  const nigeriaStates = [
-    'Abia',
-    'Adamawa',
-    'Akwa Ibom',
-    'Anambra',
-    'Bauchi',
-    'Bayelsa',
-    'Benue',
-    'Borno',
-    'Cross River',
-    'Delta',
-    'Ebonyi',
-    'Edo',
-    'Ekiti',
-    'Enugu',
-    'FCT (Abuja)',
-    'Gombe',
-    'Imo',
-    'Jigawa',
-    'Kaduna',
-    'Kano',
-    'Katsina',
-    'Kebbi',
-    'Kogi',
-    'Kwara',
-    'Lagos',
-    'Nasarawa',
-    'Niger',
-    'Ogun',
-    'Ondo',
-    'Osun',
-    'Oyo',
-    'Plateau',
-    'Rivers',
-    'Sokoto',
-    'Taraba',
-    'Yobe',
-    'Zamfara'
+  // Ghana regions for dropdown
+  const ghanaRegions = [
+    'Ahafo',
+    'Ashanti',
+    'Bono',
+    'Bono East',
+    'Central',
+    'Eastern',
+    'Greater Accra',
+    'North East',
+    'Northern',
+    'Oti',
+    'Savannah',
+    'Upper East',
+    'Upper West',
+    'Volta',
+    'Western',
+    'Western North'
   ];
 
   const [deliveryMethod, setDeliveryMethod] = useState('pickup');
@@ -472,7 +451,7 @@ export default function CheckoutPage() {
                         onChange={(e) => setShippingData({ ...shippingData, phone: e.target.value })}
                         className={`w-full px-4 py-3 border-2 rounded-lg focus:ring-2 focus:ring-[#D7A7A0] focus:border-[#D7A7A0] ${errors.phone ? 'border-[#C4877B]' : 'border-gray-300'
                           }`}
-                        placeholder="+234 XX XXX XXXX"
+                        placeholder="+233 XX XXX XXXX"
                       />
                       {errors.phone && <p className="text-sm text-[#9A1900] mt-1">{errors.phone}</p>}
                     </div>
@@ -503,7 +482,7 @@ export default function CheckoutPage() {
                           onChange={(e) => setShippingData({ ...shippingData, city: e.target.value })}
                           className={`w-full px-4 py-3 border-2 rounded-lg focus:ring-2 focus:ring-[#D7A7A0] focus:border-[#D7A7A0] ${errors.city ? 'border-[#C4877B]' : 'border-gray-300'
                             }`}
-                          placeholder="Lagos"
+                          placeholder="Accra"
                         />
                         {errors.city && <p className="text-sm text-[#9A1900] mt-1">{errors.city}</p>}
                       </div>
@@ -518,7 +497,7 @@ export default function CheckoutPage() {
                             }`}
                         >
                           <option value="">Select Region</option>
-                          {nigeriaStates.map((region) => (
+                          {ghanaRegions.map((region) => (
                             <option key={region} value={region}>{region}</option>
                           ))}
                         </select>
@@ -600,8 +579,8 @@ export default function CheckoutPage() {
                       <div className="flex items-center space-x-4">
                         <input type="radio" name="delivery" value="accra" checked={deliveryMethod === 'accra'} onChange={(e) => setDeliveryMethod(e.target.value)} className="w-5 h-5 text-[#7A5C4D]" />
                         <div>
-                          <p className="font-semibold text-gray-900">Lagos Delivery</p>
-                          <p className="text-sm text-gray-600">Delivery within Lagos</p>
+                          <p className="font-semibold text-gray-900">Accra Delivery</p>
+                          <p className="text-sm text-gray-600">Delivery within Accra</p>
                         </div>
                       </div>
                       <p className="font-bold text-gray-900">GH₵ 40.00</p>
@@ -611,7 +590,7 @@ export default function CheckoutPage() {
                       <div className="flex items-center space-x-4">
                         <input type="radio" name="delivery" value="outside-accra" checked={deliveryMethod === 'outside-accra'} onChange={(e) => setDeliveryMethod(e.target.value)} className="w-5 h-5 text-[#7A5C4D]" />
                         <div>
-                          <p className="font-semibold text-gray-900">Outside Lagos Delivery</p>
+                          <p className="font-semibold text-gray-900">Outside Accra Delivery</p>
                           <p className="text-sm text-gray-600">Delivery to bus stations (VIP, OA, STC, etc.)</p>
                         </div>
                       </div>

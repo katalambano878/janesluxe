@@ -257,12 +257,12 @@ export default function ProductForm({ initialData, isEditMode = false }: Product
         const title = name ? `${name} | YOUR_BRAND_NAME` : '';
         const metaDesc = desc
             ? (desc.length > 160 ? desc.substring(0, 157).trimEnd() + '...' : desc)
-            : name ? `Shop ${name} at YOUR_BRAND_NAME. Curated fashion in Nigeria with worldwide delivery.` : '';
+            : name ? `Shop ${name} at YOUR_BRAND_NAME. Curated fashion in Ghana with worldwide delivery.` : '';
         const kw = name
             ? [...new Set([
                 name.toLowerCase(),
                 ...name.toLowerCase().split(/\s+/).filter(w => w.length > 2),
-                'YOUR_BRAND_NAME', 'fashion nigeria', 'online fashion'
+                'YOUR_BRAND_NAME', 'fashion ghana', 'online fashion'
               ])].join(', ')
             : '';
         return { title, metaDesc, kw };
@@ -1524,7 +1524,7 @@ export default function ProductForm({ initialData, isEditMode = false }: Product
                                     value={keywords}
                                     onChange={(e) => { setKeywords(e.target.value); setKeywordsEdited(true); }}
                                     className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-600 focus:border-gray-600"
-                                    placeholder="e.g. lash bed, beauty tools, nigeria"
+                                    placeholder="e.g. lash bed, beauty tools, ghana"
                                 />
                                 <p className="text-xs text-gray-400 mt-1">Separate with commas. Auto-generated from product name.</p>
                             </div>

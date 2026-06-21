@@ -53,25 +53,25 @@ export function isValidEmail(email: string): boolean {
 }
 
 /**
- * Validate Nigeria phone number format.
- * Accepts: 0XXXXXXXXXXX (11 digits), +234XXXXXXXXXXX or 234XXXXXXXXXXX (13 digits)
+ * Validate Ghana phone number format.
+ * Accepts: 0XXXXXXXXX (10 digits), +233XXXXXXXXX or 233XXXXXXXXX (12 digits)
  */
-export function isValidNigeriaPhone(phone: string): boolean {
+export function isValidGhanaPhone(phone: string): boolean {
     if (!phone || typeof phone !== 'string') return false;
     const cleaned = phone.replace(/\D/g, '');
     return (
-        (cleaned.length === 11 && cleaned.startsWith('0')) ||
-        (cleaned.length === 13 && cleaned.startsWith('234'))
+        (cleaned.length === 10 && cleaned.startsWith('0')) ||
+        (cleaned.length === 12 && cleaned.startsWith('233'))
     );
 }
 
 /**
- * Normalize a Nigeria phone number to 0XXXXXXXXXXX format.
- * Handles +234/234 prefix and strips spaces/dashes.
+ * Normalize a Ghana phone number to 0XXXXXXXXX format.
+ * Handles +233/233 prefix and strips spaces/dashes.
  */
-export function normalizeNigeriaPhone(phone: string): string {
+export function normalizeGhanaPhone(phone: string): string {
     const cleaned = phone.replace(/\D/g, '');
-    if (cleaned.length === 13 && cleaned.startsWith('234')) {
+    if (cleaned.length === 12 && cleaned.startsWith('233')) {
         return '0' + cleaned.slice(3);
     }
     return cleaned;

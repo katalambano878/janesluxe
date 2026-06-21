@@ -39,21 +39,21 @@ Delivery: Worldwide delivery.`,
 Phone/WhatsApp: YOUR_PHONE_NUMBER
 Email: hello@yourdomain.com
 Instagram: @YOUR_HANDLE
-Address: Lagos, Nigeria
-Support Hours: Monday to Saturday, 9 AM - 6 PM WAT`,
-    keywords: ["contact", "phone", "whatsapp", "email", "address", "support", "YOUR_PHONE_NUMBER", "lagos", "nigeria", "instagram", "YOUR_HANDLE"],
+Address: Accra, Ghana
+Support Hours: Monday to Saturday, 9 AM - 6 PM GMT`,
+    keywords: ["contact", "phone", "whatsapp", "email", "address", "support", "YOUR_PHONE_NUMBER", "accra", "ghana", "instagram", "YOUR_HANDLE"],
   },
   {
     id: "shipping-policy",
     title: "Shipping & Delivery Policy",
     path: "/shipping",
     category: "shipping",
-    content: `YOUR_BRAND_NAME ships from Lagos, Nigeria and offers worldwide delivery.
+    content: `YOUR_BRAND_NAME ships from Accra, Ghana and offers nationwide and worldwide delivery.
 
 Shipping fees and delivery timelines depend on destination and are shown at checkout.
 
 Customers receive order updates and can track orders using order number and email.`,
-    keywords: ["shipping", "delivery", "worldwide", "international", "timeline", "tracking", "lagos", "nigeria", "YOUR_BRAND_NAME"],
+    keywords: ["shipping", "delivery", "worldwide", "international", "timeline", "tracking", "accra", "ghana", "YOUR_BRAND_NAME"],
   },
   {
     id: "returns-policy",
@@ -72,11 +72,11 @@ Refunds are processed after item inspection.`,
     title: "Payment Methods",
     path: "/checkout",
     category: "payment",
-    content: `Secure payments are processed by Paystack. Customers can pay with debit/credit cards (Visa, Mastercard, Verve), bank transfer, USSD, mobile money, or QR code at checkout.
+    content: `Secure payments are processed by Paystack. Customers can pay with debit/credit cards (Visa, Mastercard), bank transfer, USSD, mobile money (MTN, Telecel, AirtelTigo), or QR code at checkout.
 
-Cash on Delivery is available for eligible orders within Lagos.
+Cash on Delivery is available for eligible orders within Accra.
 All prices are shown in GH₵ (GHS) unless otherwise stated.`,
-    keywords: ["payment", "paystack", "card", "bank transfer", "ussd", "momo", "checkout", "secure", "ngn", "Ghana Cedis", "nigeria"],
+    keywords: ["payment", "paystack", "card", "bank transfer", "ussd", "momo", "mobile money", "checkout", "secure", "ghs", "Ghana Cedis", "ghana"],
   },
   {
     id: "order-tracking-guide",

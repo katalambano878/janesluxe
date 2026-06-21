@@ -13,40 +13,40 @@ export default function ShippingPage() {
       type: 'Express Delivery',
       time: 'Next Day',
       cost: 'GH₵40',
-      description: 'Available for Lagos & Abuja orders placed before 2pm',
+      description: 'Available for Accra & Kumasi orders placed before 2pm',
       icon: 'ri-rocket-line'
     },
     {
       type: 'Store Pickup',
       time: 'Same Day',
       cost: 'FREE',
-      description: 'Collect from our Lagos store',
+      description: 'Collect from our Madina or Dodowa branch',
       icon: 'ri-store-2-line'
     }
   ];
 
   const zones = [
     {
-      zone: 'Zone 1 - Lagos Metro',
-      areas: 'Victoria Island, Ikoyi, Lekki Phase 1, Surulere, Yaba, Ikeja GRA, Apapa',
+      zone: 'Zone 1 - Accra Metro',
+      areas: 'Madina, Adenta, Dodowa, East Legon, Osu, Labone, Airport Residential, Spintex, Tema',
       standard: '1-2 days',
       express: 'Next day'
     },
     {
-      zone: 'Zone 2 - Greater Lagos',
-      areas: 'Ikeja, Maryland, Magodo, Gbagada, Festac, Ajah, Sangotedo, Badagry corridor',
+      zone: 'Zone 2 - Greater Accra',
+      areas: 'Kasoa, Teshie, Nungua, Ashaiman, Dansoman, Kaneshie, Achimota, Pokuase',
       standard: '2-3 days',
       express: 'Next day'
     },
     {
       zone: 'Zone 3 - Major Cities',
-      areas: 'Abuja, Port Harcourt, Kano, Ibadan, Enugu, Benin City, Calabar, Kaduna',
+      areas: 'Kumasi, Takoradi, Cape Coast, Tamale, Koforidua, Sunyani, Ho, Techiman',
       standard: '3-4 days',
       express: '1-2 days'
     },
     {
       zone: 'Zone 4 - Other Areas',
-      areas: 'All other locations within Nigeria',
+      areas: 'All other locations within Ghana',
       standard: '4-5 days',
       express: 'Not available'
     }
@@ -59,7 +59,7 @@ export default function ShippingPage() {
           <div className="max-w-3xl mx-auto text-center">
             <h1 className="text-5xl font-bold text-gray-900 mb-6">Shipping & Delivery</h1>
             <p className="text-xl text-gray-600 leading-relaxed">
-              Fast, reliable delivery across Nigeria. Free standard shipping on orders over GHS 300.
+              Fast, reliable delivery across Ghana. Free standard shipping on orders over GHS 300.
             </p>
           </div>
         </div>
@@ -89,7 +89,7 @@ export default function ShippingPage() {
           </div>
           <h3 className="text-2xl font-bold text-gray-900 mb-3">Free Standard Shipping</h3>
           <p className="text-lg text-gray-600">
-            Spend GHS 300 or more and get <span className="font-bold text-gray-900">FREE standard delivery</span> anywhere in Nigeria
+            Spend GHS 300 or more and get <span className="font-bold text-gray-900">FREE standard delivery</span> anywhere in Ghana
           </p>
         </div>
 

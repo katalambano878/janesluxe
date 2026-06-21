@@ -35,13 +35,13 @@ export async function testSmsAction(phone: string, message: string, authToken: s
             return { success: false, error: 'Invalid or too long message' };
         }
 
-        // Format phone number for Nigeria
+        // Format phone number for Ghana
         let cleaned = phone.replace(/\D/g, '');
         if (cleaned.startsWith('0')) {
-            cleaned = '234' + cleaned.slice(1);
+            cleaned = '233' + cleaned.slice(1);
         }
-        if (!cleaned.startsWith('234') && cleaned.length === 10) {
-            cleaned = '234' + cleaned;
+        if (!cleaned.startsWith('233') && cleaned.length === 9) {
+            cleaned = '233' + cleaned;
         }
         const recipient = '+' + cleaned;
 

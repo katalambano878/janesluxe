@@ -338,10 +338,10 @@ const STORE_INFO: Record<string, string> = {
   shipping: `YOUR_BRAND_NAME sources products globally through vetted international suppliers and delivers worldwide. Delivery timelines and shipping fees are calculated by destination at checkout.`,
   returns: `We accept eligible returns within 30 days of delivery for unused items in original condition. To start a return, use your account or ask me to create a support ticket. Refunds are processed after inspection.`,
   payment: `We support secure checkout options, including Mobile Money for eligible local orders. Available payment methods are shown at checkout.`,
-  contact: `You can reach us through:\n- This chat (24/7)\n- Email: hello@yourdomain.com\n- Phone/WhatsApp: YOUR_PHONE_NUMBER\n- Instagram: @YOUR_HANDLE\n- Visit: Lagos, Nigeria\n- Support ticket: I can create one for you right now`,
+  contact: `You can reach us through:\n- This chat (24/7)\n- Email: hello@yourdomain.com\n- Phone/WhatsApp: YOUR_PHONE_NUMBER\n- Instagram: @YOUR_HANDLE\n- Visit: Accra, Ghana\n- Support ticket: I can create one for you right now`,
   about: `YOUR_BRAND_NAME is a premium global sourcing and procurement brand. We leverage a network of carefully vetted international suppliers to bring you quality products at direct-from-supplier pricing. We handle product selection support, supplier coordination, and seamless logistics through a preorder-based fulfillment system — so you can shop confidently. Worldwide delivery available.`,
   delivery_times: `Delivery timelines vary by destination and product. We operate a preorder-based fulfillment system — estimated timing is shown at checkout and in your order updates.`,
-  hours: `Our online store is open 24/7. Customer support is available Monday-Saturday, 8 AM - 8 PM WAT.`,
+  hours: `Our online store is open 24/7. Customer support is available Monday-Saturday, 8 AM - 8 PM GMT.`,
 };
 
 export function getStoreInfo(topic: string): string {

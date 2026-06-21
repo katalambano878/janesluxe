@@ -3,12 +3,10 @@
 import { useState, useEffect } from 'react';
 import DeliveryNav from '../DeliveryNav';
 
-const NIGERIA_STATES = [
-    'Abia', 'Adamawa', 'Akwa Ibom', 'Anambra', 'Bauchi', 'Bayelsa', 'Benue', 'Borno',
-    'Cross River', 'Delta', 'Ebonyi', 'Edo', 'Ekiti', 'Enugu', 'FCT (Abuja)', 'Gombe',
-    'Imo', 'Jigawa', 'Kaduna', 'Kano', 'Katsina', 'Kebbi', 'Kogi', 'Kwara', 'Lagos',
-    'Nasarawa', 'Niger', 'Ogun', 'Ondo', 'Osun', 'Oyo', 'Plateau', 'Rivers', 'Sokoto',
-    'Taraba', 'Yobe', 'Zamfara',
+const GHANA_REGIONS = [
+    'Ahafo', 'Ashanti', 'Bono', 'Bono East', 'Central', 'Eastern',
+    'Greater Accra', 'North East', 'Northern', 'Oti', 'Savannah',
+    'Upper East', 'Upper West', 'Volta', 'Western', 'Western North',
 ];
 
 interface Zone {
@@ -241,14 +239,14 @@ export default function ZonesPage() {
                                 <label className="block text-sm font-semibold text-gray-900 mb-1.5">Zone Name *</label>
                                 <input type="text" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
                                     className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-gray-600 focus:border-gray-600"
-                                    placeholder="Lagos Metro" />
+                                    placeholder="Accra Metro" />
                             </div>
 
                             <div>
                                 <label className="block text-sm font-semibold text-gray-900 mb-1.5">Description</label>
                                 <input type="text" value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
                                     className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-gray-600 focus:border-gray-600"
-                                    placeholder="Covers central Lagos and suburbs" />
+                                    placeholder="Covers central Accra and suburbs" />
                             </div>
 
                             <div className="grid grid-cols-2 gap-4">
@@ -285,7 +283,7 @@ export default function ZonesPage() {
                             <div>
                                 <label className="block text-sm font-semibold text-gray-900 mb-2">Covered Regions ({form.regions.length} selected)</label>
                                 <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto p-3 border-2 border-gray-200 rounded-xl">
-                                    {NIGERIA_STATES.map(region => (
+                                    {GHANA_REGIONS.map(region => (
                                         <label key={region}
                                             className={`flex items-center gap-2 p-2 rounded-lg cursor-pointer transition-colors text-sm ${
                                                 form.regions.includes(region) ? 'bg-gray-50 text-gray-900' : 'hover:bg-gray-50 text-gray-700'

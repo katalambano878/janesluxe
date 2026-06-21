@@ -297,7 +297,7 @@ function OrderTrackingContent() {
                 <div>
                   <p className="text-sm text-gray-600">Shipping To</p>
                   <p className="font-semibold text-gray-900">
-                    {shippingAddress.city || shippingAddress.region || 'Nigeria'}
+                    {shippingAddress.city || shippingAddress.region || 'Ghana'}
                   </p>
                 </div>
               </div>

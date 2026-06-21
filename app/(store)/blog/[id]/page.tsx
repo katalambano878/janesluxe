@@ -14,16 +14,16 @@ export default async function BlogPostPage({ params }: { params: Promise<{ id: s
 
   const posts: any = {
     '1': {
-      title: 'The Ultimate Guide to Online Shopping in Nigeria',
+      title: 'The Ultimate Guide to Online Shopping in Ghana',
       image: 'https://readdy.ai/api/search-image?query=Modern%20African%20woman%20shopping%20online%20on%20laptop%20in%20bright%20contemporary%20home%20office%20coffee%20cup%20plants%20natural%20light%20relaxed%20lifestyle%20photography%20minimal%20clean%20background&width=1200&height=600&seq=blogpost1&orientation=landscape',
       category: 'Shopping Tips',
       date: 'December 15, 2024',
       readTime: '8 min read',
       author: 'Ama Osei',
       content: `
-        <p>Online shopping has revolutionised the way Nigerians purchase products, offering convenience, variety, and competitive prices. However, navigating the world of ecommerce can be daunting if you're new to it. This comprehensive guide will help you shop online safely and confidently.</p>
+        <p>Online shopping has revolutionised the way Ghanaians purchase products, offering convenience, variety, and competitive prices. However, navigating the world of ecommerce can be daunting if you're new to it. This comprehensive guide will help you shop online safely and confidently.</p>
 
-        <h2>Why Shop Online in Nigeria?</h2>
+        <h2>Why Shop Online in Ghana?</h2>
         <p>The benefits of online shopping are numerous. You can browse thousands of products from the comfort of your home, compare prices easily, read reviews from other customers, and have items delivered directly to your doorstep. For busy professionals and families, online shopping saves valuable time.</p>
 
         <p>Moreover, online stores often offer exclusive deals and promotions that aren't available in physical shops. You can shop at any time of day or night, without worrying about store opening hours or traffic.</p>
@@ -38,10 +38,10 @@ export default async function BlogPostPage({ params }: { params: Promise<{ id: s
           <li><strong>Professional design:</strong> Well-organised website with detailed product information</li>
         </ul>
 
-        <h2>Payment Methods in Nigeria</h2>
-        <p>Nigerian online shoppers have several secure payment options:</p>
+        <h2>Payment Methods in Ghana</h2>
+        <p>Ghanaian online shoppers have several secure payment options:</p>
         <ul>
-          <li><strong>Mobile Money &amp; transfers:</strong> MTN, Airtel, Glo, and 9mobile offer convenient payment options</li>
+          <li><strong>Mobile Money &amp; transfers:</strong> MTN MoMo, Telecel Cash, and AirtelTigo Money offer convenient payment options</li>
           <li><strong>Credit/Debit Cards:</strong> Visa and Mastercard are widely accepted</li>
           <li><strong>Paystack:</strong> Our integrated payment gateway for seamless card, bank transfer, USSD, and mobile money payments</li>
         </ul>
@@ -49,7 +49,7 @@ export default async function BlogPostPage({ params }: { params: Promise<{ id: s
         <p>Always ensure you're on a secure connection when entering payment details. Avoid using public Wi-Fi for transactions.</p>
 
         <h2>Understanding Delivery Options</h2>
-        <p>Delivery times and costs vary by location. In Lagos and major cities, you can often get next-day delivery. Remote areas may take longer. Always check:</p>
+        <p>Delivery times and costs vary by location. In Accra and major cities, you can often get next-day delivery. Remote areas may take longer. Always check:</p>
         <ul>
           <li>Estimated delivery time for your location</li>
           <li>Delivery costs (many stores offer free shipping above a certain amount)</li>
@@ -88,7 +88,7 @@ export default async function BlogPostPage({ params }: { params: Promise<{ id: s
         </ul>
 
         <h2>Conclusion</h2>
-        <p>Online shopping in Nigeria is safe, convenient, and increasingly popular. By following these guidelines, you can enjoy all the benefits whilst minimising risks. Start with small purchases from reputable stores to build confidence, and soon you'll wonder how you ever lived without the convenience of online shopping.</p>
+        <p>Online shopping in Ghana is safe, convenient, and increasingly popular. By following these guidelines, you can enjoy all the benefits whilst minimising risks. Start with small purchases from reputable stores to build confidence, and soon you'll wonder how you ever lived without the convenience of online shopping.</p>
 
         <p>Happy shopping!</p>
       `
@@ -107,7 +107,7 @@ export default async function BlogPostPage({ params }: { params: Promise<{ id: s
         <p>Modern LED bulbs with adjustable brightness and colour temperature can dramatically change your home's ambience. Control them from your phone, set schedules, and reduce energy costs.</p>
 
         <h2>2. Premium Bedding Set</h2>
-        <p>Invest in quality sheets, duvet covers, and pillows. Good sleep is essential, and premium bedding makes a noticeable difference. Look for breathable fabrics suitable for Nigeria's climate.</p>
+        <p>Invest in quality sheets, duvet covers, and pillows. Good sleep is essential, and premium bedding makes a noticeable difference. Look for breathable fabrics suitable for Ghana's climate.</p>
 
         <h2>3. Air Purifier</h2>
         <p>With increasing air quality concerns, an air purifier removes dust, pollen, and pollutants, creating a healthier indoor environment for your family.</p>
@@ -264,7 +264,7 @@ export default async function BlogPostPage({ params }: { params: Promise<{ id: s
   const relatedPosts = [
     {
       id: id === '1' ? '2' : '1',
-      title: id === '1' ? '10 Must-Have Products for Your Home This Season' : 'The Ultimate Guide to Online Shopping in Nigeria',
+      title: id === '1' ? '10 Must-Have Products for Your Home This Season' : 'The Ultimate Guide to Online Shopping in Ghana',
       image: id === '1' ?
         'https://readdy.ai/api/search-image?query=Beautiful%20modern%20African%20home%20interior%20with%20stylish%20furniture%20decor%20items%20plants%20bright%20natural%20lighting%20contemporary%20design%20magazine%20quality%20photography&width=600&height=400&seq=related1&orientation=landscape' :
         'https://readdy.ai/api/search-image?query=Modern%20African%20woman%20shopping%20online%20on%20laptop%20in%20bright%20contemporary%20home%20office%20coffee%20cup%20plants%20natural%20light%20relaxed%20lifestyle%20photography%20minimal%20clean%20background&width=600&height=400&seq=related2&orientation=landscape',
@@ -272,7 +272,7 @@ export default async function BlogPostPage({ params }: { params: Promise<{ id: s
     },
     {
       id: id === '3' ? '1' : '3',
-      title: id === '3' ? 'The Ultimate Guide to Online Shopping in Nigeria' : 'How to Choose Quality Products: A Buyer\'s Guide',
+      title: id === '3' ? 'The Ultimate Guide to Online Shopping in Ghana' : 'How to Choose Quality Products: A Buyer\'s Guide',
       image: id === '3' ?
         'https://readdy.ai/api/search-image?query=Modern%20African%20woman%20shopping%20online%20on%20laptop%20in%20bright%20contemporary%20home%20office%20coffee%20cup%20plants%20natural%20light%20relaxed%20lifestyle%20photography%20minimal%20clean%20background&width=600&height=400&seq=related3&orientation=landscape' :
         'https://readdy.ai/api/search-image?query=Person%20examining%20product%20quality%20checking%20labels%20and%20details%20in%20bright%20retail%20setting%20closeup%20hands%20inspecting%20merchandise%20professional%20photography%20clean%20background&width=600&height=400&seq=related4&orientation=landscape',

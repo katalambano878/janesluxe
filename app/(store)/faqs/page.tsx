@@ -40,7 +40,7 @@ export default function FAQsPage() {
     {
       category: 'shipping',
       question: 'What are your delivery times?',
-      answer: 'Delivery times depend on destination. We ship from Lagos, Nigeria and offer worldwide delivery. Final delivery timelines are shown at checkout and in your order updates.'
+      answer: 'Delivery times depend on destination. We ship from Accra, Ghana and offer worldwide delivery. Final delivery timelines are shown at checkout and in your order updates.'
     },
     {
       category: 'shipping',
@@ -49,8 +49,8 @@ export default function FAQsPage() {
     },
     {
       category: 'shipping',
-      question: 'Do you ship outside Nigeria?',
-      answer: 'Yes. YOUR_BRAND_NAME offers worldwide delivery from Nigeria.'
+      question: 'Do you ship outside Ghana?',
+      answer: 'Yes. YOUR_BRAND_NAME offers worldwide delivery from Ghana.'
     },
     {
       category: 'shipping',
@@ -60,7 +60,7 @@ export default function FAQsPage() {
     {
       category: 'returns',
       question: 'How fast is delivery?',
-      answer: 'Delivery speed depends on your location. We dispatch from Lagos, Nigeria and share estimated timing during checkout and after order confirmation.'
+      answer: 'Delivery speed depends on your location. We dispatch from Accra, Ghana and share estimated timing during checkout and after order confirmation.'
     },
     {
       category: 'returns',
@@ -80,7 +80,7 @@ export default function FAQsPage() {
     {
       category: 'payment',
       question: 'What payment methods do you accept?',
-      answer: 'We accept bank transfers, Visa/Mastercard credit and debit cards, and Cash on Delivery for eligible orders within Lagos. All payments are processed securely.'
+      answer: 'We accept bank transfers, Visa/Mastercard credit and debit cards, mobile money, and Cash on Delivery for eligible orders within Accra. All payments are processed securely.'
     },
     {
       category: 'payment',

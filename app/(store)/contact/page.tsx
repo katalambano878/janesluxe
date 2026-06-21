@@ -87,7 +87,7 @@ export default function ContactPage() {
 
   const contactEmail = getSetting("contact_email") || "hello@yourdomain.com";
   const contactPhone = getSetting("contact_phone") || "YOUR_PHONE_NUMBER";
-  const contactAddress = getSetting("contact_address") || "Lagos, Nigeria";
+  const contactAddress = getSetting("contact_address") || "Accra, Ghana";
 
   const heroTitle = pageContent?.title || 'Get In Touch';
   const heroSubtitle = pageContent?.subtitle || 'Have a question or need assistance? Our friendly team is here to help.';
@@ -98,7 +98,7 @@ export default function ContactPage() {
       title: 'Call Us',
       value: contactPhone,
       link: `tel:${contactPhone.replace(/\s/g, '')}`,
-      description: "Mon-Sat, 9am-6pm WAT",
+      description: "Mon-Sat, 9am-6pm GMT",
     },
     {
       icon: 'ri-mail-line',
@@ -130,7 +130,7 @@ export default function ContactPage() {
     },
     {
       question: 'Do you offer international shipping?',
-      answer: "Yes. YOUR_BRAND_NAME offers worldwide delivery from Lagos, Nigeria.",
+      answer: "Yes. YOUR_BRAND_NAME offers worldwide delivery from Accra, Ghana.",
     },
     {
       question: 'What payment methods do you accept?',
@@ -232,7 +232,7 @@ export default function ContactPage() {
                         value={formData.phone}
                         onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                         className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-brand-carton/30 focus:border-brand-carton text-sm transition-colors bg-gray-50 focus:bg-white"
-                        placeholder="+234 XX XXXX XXXX"
+                        placeholder="+233 XX XXXX XXXX"
                       />
                     </div>
                     <div>
@@ -326,7 +326,7 @@ export default function ContactPage() {
                   </div>
                   <h3 className="text-lg font-bold mb-2">Need Immediate Help?</h3>
                   <p className="text-sm text-white/75 mb-5 leading-relaxed">
-                    Our team is available Mon-Sat, 9am-6pm WAT. For urgent matters, chat with us on WhatsApp.
+                    Our team is available Mon-Sat, 9am-6pm GMT. For urgent matters, chat with us on WhatsApp.
                   </p>
                   <a
                     href={`https://wa.me/234${contactPhone.replace(/^0/, '')}`}
@@ -349,7 +349,7 @@ export default function ContactPage() {
                   <div>
                     <h3 className="font-semibold text-gray-900 text-sm">Visit Our Office</h3>
                     <p className="text-sm text-gray-600 mt-1 leading-relaxed">
-                      Stop by in Lagos to discuss your sourcing needs in person.
+                      Stop by in Accra to discuss your sourcing needs in person.
                     </p>
                     <div className="mt-3 space-y-1.5 text-sm text-gray-500">
                       <p className="flex items-center gap-2">
@@ -358,7 +358,7 @@ export default function ContactPage() {
                       </p>
                       <p className="flex items-center gap-2">
                         <i className="ri-time-line text-brand-carton"></i>
-                        Mon-Sat: 9am-6pm WAT
+                        Mon-Sat: 9am-6pm GMT
                       </p>
                     </div>
                   </div>

@@ -151,7 +151,7 @@ export default function ReturnsPortalPage() {
                     <p className="font-semibold mb-1">Delivery &amp; Returns</p>
                     <ul className="space-y-1">
                       <li>• Delivers within 24 - 48 hours nationwide</li>
-                      <li>• Pickup available at our Lagos location</li>
+                      <li>• Pickup available at our Accra location</li>
                       <li>• Contact us for any issues with your order</li>
                       <li>• Exchange or replacement for defective items</li>
                     </ul>

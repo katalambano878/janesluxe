@@ -247,7 +247,7 @@ export default function SignupPage() {
                 onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                 className={`w-full px-4 py-3 border-2 rounded-lg focus:ring-2 focus:ring-gray-600 focus:border-gray-600 ${errors.phone ? 'border-[#FF6666]' : 'border-gray-300'
                   }`}
-                placeholder="+234 XX XXXX XXXX"
+                placeholder="+233 XX XXXX XXXX"
               />
               {errors.phone && (
                 <p className="text-sm text-[#9A1900] mt-2">{errors.phone}</p>
