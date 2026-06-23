@@ -62,9 +62,9 @@ function OrderSuccessContent() {
       }
     }
 
-    // Webhook never fired — call our verify endpoint which queries Paystack directly
+    // Webhook never fired — call our verify endpoint which queries Moolre directly
     try {
-      const res = await fetch('/api/payment/paystack/verify', {
+      const res = await fetch('/api/payment/moolre/verify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ orderNumber: orderNum })

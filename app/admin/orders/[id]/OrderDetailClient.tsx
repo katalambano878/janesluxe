@@ -145,7 +145,7 @@ export default function OrderDetailClient({ orderId }: OrderDetailClientProps) {
     setReverifying(true);
     setReverifyResult(null);
     try {
-      const res = await fetch('/api/payment/paystack/verify', {
+      const res = await fetch('/api/payment/moolre/verify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ orderNumber: order.order_number }),
@@ -155,7 +155,7 @@ export default function OrderDetailClient({ orderId }: OrderDetailClientProps) {
         setReverifyResult('✅ Payment verified! Order has been marked as paid.');
         fetchOrderDetails();
       } else {
-        setReverifyResult(`⚠️ Paystack could not confirm this payment automatically. Use "Mark as Paid" below to manually confirm it.`);
+        setReverifyResult(`⚠️ Moolre could not confirm this payment automatically. Use "Mark as Paid" below to manually confirm it.`);
       }
     } catch (err) {
       setReverifyResult('❌ Network error. Please try again.');

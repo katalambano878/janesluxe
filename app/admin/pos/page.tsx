@@ -739,7 +739,7 @@ export default function POSPage() {
             }
 
             if (paymentMethod === 'momo') {
-                const paymentRes = await fetch('/api/payment/paystack', {
+                const paymentRes = await fetch('/api/payment/moolre', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ orderId: orderNumber, amount: grandTotal, customerEmail })
