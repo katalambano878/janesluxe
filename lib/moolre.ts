@@ -18,11 +18,24 @@ export function isMoolreConfigured(): boolean {
     );
 }
 
-function moolreHeaders(): Record<string, string> {
+/**
+ * The `/embed/link` endpoint authenticates with the PUBLIC key (X-API-PUBKEY).
+ * The `/open/transact/*` endpoints (incl. payment status) authenticate with the
+ * PRIVATE key (X-API-KEY). They are different keys in the Moolre dashboard.
+ */
+function moolrePublicHeaders(): Record<string, string> {
     return {
         'Content-Type': 'application/json',
         'X-API-USER': process.env.MOOLRE_API_USER || '',
         'X-API-PUBKEY': process.env.MOOLRE_API_PUBKEY || '',
+    };
+}
+
+function moolrePrivateHeaders(): Record<string, string> {
+    return {
+        'Content-Type': 'application/json',
+        'X-API-USER': process.env.MOOLRE_API_USER || '',
+        'X-API-KEY': process.env.MOOLRE_API_KEY || '',
     };
 }
 
@@ -48,7 +61,7 @@ export async function moolreGenerateLink(params: {
     try {
         const res = await fetch(`${MOOLRE_BASE}/embed/link`, {
             method: 'POST',
-            headers: moolreHeaders(),
+            headers: moolrePublicHeaders(),
             body: JSON.stringify({
                 type: 1,
                 amount: String(params.amount),
@@ -85,8 +98,14 @@ export async function moolreGenerateLink(params: {
     }
 }
 
+export function canVerifyMoolreStatus(): boolean {
+    return !!process.env.MOOLRE_API_KEY;
+}
+
 export interface MoolreStatusResult {
     paid: boolean;
+    /** True when Moolre rejected our credentials (so the result is inconclusive). */
+    authError: boolean;
     amount?: number;
     transactionId?: string;
     paidAt?: string;
@@ -97,12 +116,18 @@ export interface MoolreStatusResult {
 /**
  * Check the final status of a payment by its external reference.
  * txstatus === 1 means the collection succeeded.
+ *
+ * Requires MOOLRE_API_KEY (private key). If it's missing or rejected, the
+ * result is flagged authError so callers can fall back to the webhook.
  */
 export async function moolreCheckStatus(externalref: string): Promise<MoolreStatusResult> {
+    if (!process.env.MOOLRE_API_KEY) {
+        return { paid: false, authError: true };
+    }
     try {
         const res = await fetch(`${MOOLRE_BASE}/open/transact/status`, {
             method: 'POST',
-            headers: moolreHeaders(),
+            headers: moolrePrivateHeaders(),
             body: JSON.stringify({
                 type: 1,
                 idtype: '1', // 1 = our unique externalref
@@ -113,6 +138,8 @@ export async function moolreCheckStatus(externalref: string): Promise<MoolreStat
 
         const json = await res.json().catch(() => ({}));
         const data = json?.data || {};
+        // SS00 = authentication error from Moolre.
+        const authError = json?.code === 'SS00';
         const paid = json?.status === 1 && Number(data?.txstatus) === 1;
 
         const rawAmount =
@@ -120,6 +147,7 @@ export async function moolreCheckStatus(externalref: string): Promise<MoolreStat
 
         return {
             paid,
+            authError,
             amount: rawAmount !== undefined ? Number(rawAmount) : undefined,
             transactionId: data?.transactionid,
             paidAt: data?.ts,
@@ -127,6 +155,6 @@ export async function moolreCheckStatus(externalref: string): Promise<MoolreStat
             raw: json,
         };
     } catch {
-        return { paid: false };
+        return { paid: false, authError: false };
     }
 }

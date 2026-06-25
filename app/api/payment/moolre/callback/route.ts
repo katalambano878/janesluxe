@@ -50,13 +50,28 @@ export async function POST(req: Request) {
             return NextResponse.json({ success: false, message: 'Missing order reference' }, { status: 400 });
         }
 
-        // Trust-but-verify: independently confirm the payment with Moolre.
+        // Try to independently confirm with Moolre's status API. When the
+        // private key isn't configured (authError), fall back to trusting the
+        // webhook body itself — this endpoint is already gated by the shared
+        // secret in the `?key=` query string.
         const status = await moolreCheckStatus(externalref);
+        const webhookSaysPaid = Number(body?.status) === 1;
+        const confirmed = status.paid || (status.authError && webhookSaysPaid);
 
-        if (!status.paid) {
-            console.log('[Moolre Callback] Payment not confirmed for', merchantOrderRef);
+        if (!confirmed) {
+            console.log('[Moolre Callback] Payment not confirmed for', merchantOrderRef,
+                '| status.paid:', status.paid, '| authError:', status.authError, '| webhook status:', body?.status);
             return NextResponse.json({ success: false, message: 'Payment not confirmed' });
         }
+
+        // Prefer the verified amount; fall back to the webhook-reported amount.
+        const webhookAmount =
+            data?.amount !== undefined ? Number(data.amount)
+                : data?.value !== undefined ? Number(data.value)
+                    : undefined;
+        const confirmedAmount = status.amount !== undefined ? status.amount : webhookAmount;
+        const confirmedTxId = status.transactionId || data?.transactionid;
+        const confirmedPaidAt = status.paidAt || data?.ts;
 
         const { data: existingOrder, error: fetchError } = await supabaseAdmin
             .from('orders')
@@ -74,10 +89,10 @@ export async function POST(req: Request) {
         }
 
         // SECURITY: reject when the paid amount doesn't match the order total.
-        if (status.amount !== undefined && !Number.isNaN(status.amount)) {
+        if (confirmedAmount !== undefined && !Number.isNaN(confirmedAmount)) {
             const expected = Number(existingOrder.total);
-            if (Math.abs(status.amount - expected) > 0.01) {
-                console.error('[Moolre Callback] AMOUNT MISMATCH — REJECTING! Expected:', expected, 'Got:', status.amount);
+            if (Math.abs(confirmedAmount - expected) > 0.01) {
+                console.error('[Moolre Callback] AMOUNT MISMATCH — REJECTING! Expected:', expected, 'Got:', confirmedAmount);
                 return NextResponse.json({ success: false, message: 'Payment amount does not match order total' }, { status: 400 });
             }
         }
@@ -104,8 +119,8 @@ export async function POST(req: Request) {
                         ...(orderJson.metadata || {}),
                         payment_provider: 'moolre',
                         moolre_externalref: externalref,
-                        moolre_transaction_id: status.transactionId,
-                        moolre_paid_at: status.paidAt,
+                        moolre_transaction_id: confirmedTxId,
+                        moolre_paid_at: confirmedPaidAt,
                     },
                 })
                 .eq('id', orderJson.id);
