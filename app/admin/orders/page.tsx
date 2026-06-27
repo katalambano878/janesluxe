@@ -93,22 +93,23 @@ export default function AdminOrdersPage() {
       });
       setAvailableProducts(Array.from(productNames).sort());
 
-      // Separate confirmed (paid) from abandoned (pending payment)
-      const confirmedOrders = ordersData?.filter((o: any) => o.payment_status === 'paid') || [];
-      const abandonedOrders = ordersData?.filter((o: any) => o.payment_status !== 'paid') || [];
-      
-      setConfirmedCount(confirmedOrders.length);
-      setAbandonedCount(abandonedOrders.length);
+      // Every order a customer placed is a real order. The "Awaiting Payment"
+      // tab isolates the unpaid subset for payment follow-up.
+      const allOrders = ordersData || [];
+      const unpaidOrders = allOrders.filter((o: any) => o.payment_status !== 'paid');
 
-      // Calculate stats based on confirmed orders only
+      setConfirmedCount(allOrders.length);
+      setAbandonedCount(unpaidOrders.length);
+
+      // Stats reflect every order customers have placed (paid or not)
       const stats = [
-        { label: 'All Orders', count: confirmedOrders.length, status: 'all' },
-        { label: 'Pending', count: confirmedOrders.filter((o: any) => o.status === 'pending').length, status: 'pending' },
-        { label: 'Processing', count: confirmedOrders.filter((o: any) => o.status === 'processing').length, status: 'processing' },
-        { label: 'Packaged', count: confirmedOrders.filter((o: any) => o.status === 'shipped').length, status: 'shipped' },
-        { label: 'Dispatched To Rider', count: confirmedOrders.filter((o: any) => o.status === 'dispatched_to_rider').length, status: 'dispatched_to_rider' },
-        { label: 'Delivered', count: confirmedOrders.filter((o: any) => o.status === 'delivered').length, status: 'delivered' },
-        { label: 'Cancelled', count: confirmedOrders.filter((o: any) => o.status === 'cancelled').length, status: 'cancelled' }
+        { label: 'All Orders', count: allOrders.length, status: 'all' },
+        { label: 'Pending', count: allOrders.filter((o: any) => o.status === 'pending').length, status: 'pending' },
+        { label: 'Processing', count: allOrders.filter((o: any) => o.status === 'processing').length, status: 'processing' },
+        { label: 'Packaged', count: allOrders.filter((o: any) => o.status === 'shipped').length, status: 'shipped' },
+        { label: 'Dispatched To Rider', count: allOrders.filter((o: any) => o.status === 'dispatched_to_rider').length, status: 'dispatched_to_rider' },
+        { label: 'Delivered', count: allOrders.filter((o: any) => o.status === 'delivered').length, status: 'delivered' },
+        { label: 'Cancelled', count: allOrders.filter((o: any) => o.status === 'cancelled').length, status: 'cancelled' }
       ];
       setOrderStats(stats);
 
@@ -308,9 +309,8 @@ export default function AdminOrdersPage() {
     const customerEmail = getCustomerEmail(order).toLowerCase();
     const orderId = (order.order_number || order.id).toLowerCase();
 
-    // First filter by view tab (confirmed vs abandoned)
-    const isConfirmed = order.payment_status === 'paid';
-    const matchesViewTab = orderViewTab === 'confirmed' ? isConfirmed : !isConfirmed;
+    // Main tab ("All Orders") shows every order; second tab isolates unpaid ones.
+    const matchesViewTab = orderViewTab === 'confirmed' ? true : order.payment_status !== 'paid';
 
     const matchesSearch = orderId.includes(searchQuery.toLowerCase()) ||
       customerName.includes(searchQuery.toLowerCase()) ||
@@ -369,7 +369,7 @@ export default function AdminOrdersPage() {
           }`}
         >
           <i className="ri-check-double-line mr-2"></i>
-          Confirmed Orders ({confirmedCount})
+          All Orders ({confirmedCount})
         </button>
         <button
           onClick={() => { setOrderViewTab('abandoned'); setStatusFilter('all'); }}
@@ -380,7 +380,7 @@ export default function AdminOrdersPage() {
           }`}
         >
           <i className="ri-shopping-cart-2-line mr-2"></i>
-          Abandoned Carts ({abandonedCount})
+          Awaiting Payment ({abandonedCount})
         </button>
       </div>
 
@@ -408,9 +408,9 @@ export default function AdminOrdersPage() {
           <div className="flex items-start space-x-3">
             <i className="ri-information-line text-xl text-amber-600 mt-0.5"></i>
             <div>
-              <p className="text-sm font-semibold text-amber-800">Abandoned Carts</p>
+              <p className="text-sm font-semibold text-amber-800">Awaiting Payment</p>
               <p className="text-sm text-amber-700 mt-1">
-                These orders were created but payment was not completed. You can resend payment links to customers.
+                These orders were placed but payment hasn't been confirmed yet. You can resend payment links, or open an order and mark it as paid once payment is received.
               </p>
             </div>
           </div>

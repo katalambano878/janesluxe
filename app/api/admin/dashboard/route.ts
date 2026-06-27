@@ -51,11 +51,10 @@ export async function GET(request: Request) {
     const { data: orders, error: ordersError } = await ordersQuery;
     if (ordersError) throw ordersError;
 
-    // 2. Recent paid orders
+    // 2. Recent orders (any payment status, so placed orders are visible)
     let recentQuery = supabaseAdmin
       .from('orders')
-      .select('id, order_number, user_id, email, created_at, total, status, shipping_address')
-      .eq('payment_status', 'paid')
+      .select('id, order_number, user_id, email, created_at, total, status, payment_status, shipping_address')
       .order('created_at', { ascending: false })
       .limit(5);
     if (branchId) recentQuery = recentQuery.eq('branch_id', branchId);

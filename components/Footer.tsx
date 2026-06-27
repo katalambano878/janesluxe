@@ -133,7 +133,17 @@ export default function Footer() {
           {/* Final row */}
           <div className="mt-2 flex items-center justify-between text-[10px] sm:text-[11px] text-brand-text/45">
             <p>&copy; {new Date().getFullYear()} {siteName}</p>
-            <p className="text-brand-champagne/90">Trendy lifestyle, luxury style.</p>
+            <div className="flex items-center gap-3">
+              <p className="text-brand-champagne/90">Trendy lifestyle, luxury style.</p>
+              <Link
+                href="/admin/login"
+                aria-label="Admin login"
+                title="Admin login"
+                className="inline-flex items-center justify-center w-6 h-6 rounded-md text-brand-text/40 hover:text-brand-accent hover:bg-brand-primary/20 transition-colors"
+              >
+                <i className="ri-shield-user-line text-sm" />
+              </Link>
+            </div>
           </div>
       </div>
     </footer>
