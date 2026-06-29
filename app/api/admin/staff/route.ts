@@ -10,6 +10,9 @@ function getAccessToken(request: Request): string | null {
   const match = cookieHeader.match(/\bsb-access-token=([^;]+)/);
   if (match) return decodeURIComponent(match[1].trim());
 
+  const scopedMatch = cookieHeader.match(/\bsb-[a-z0-9]+-access-token=([^;]+)/i);
+  if (scopedMatch) return decodeURIComponent(scopedMatch[1].trim());
+
   const authCookie = cookieHeader
     .split(';')
     .map((c) => c.trim())
