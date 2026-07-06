@@ -3,25 +3,25 @@ import Link from 'next/link';
 export default function ShippingPage() {
   const deliveryOptions = [
     {
-      type: 'Standard Delivery',
-      time: '2-5 Business Days',
-      cost: 'GH₵20',
-      description: 'Perfect for regular orders with no rush',
-      icon: 'ri-truck-line'
-    },
-    {
-      type: 'Express Delivery',
-      time: 'Next Day',
-      cost: 'GH₵40',
-      description: 'Available for Accra & Kumasi orders placed before 2pm',
-      icon: 'ri-rocket-line'
-    },
-    {
       type: 'Store Pickup',
       time: 'Same Day',
       cost: 'FREE',
-      description: 'Collect from our Madina or Dodowa branch',
+      description: 'Collect from our Madina or Adenta branch at no charge',
       icon: 'ri-store-2-line'
+    },
+    {
+      type: 'Doorstep Delivery',
+      time: '1-5 Business Days',
+      cost: 'Quoted per order',
+      description: 'We call you to confirm your location and the delivery fee before dispatch',
+      icon: 'ri-truck-line'
+    },
+    {
+      type: 'Nationwide Delivery',
+      time: 'Varies by location',
+      cost: 'Quoted per order',
+      description: 'Delivered anywhere in Ghana via trusted couriers and stations — fee confirmed by phone',
+      icon: 'ri-map-pin-line'
     }
   ];
 
@@ -59,7 +59,7 @@ export default function ShippingPage() {
           <div className="max-w-3xl mx-auto text-center">
             <h1 className="text-5xl font-bold text-gray-900 mb-6">Shipping & Delivery</h1>
             <p className="text-xl text-gray-600 leading-relaxed">
-              Fast, reliable delivery across Ghana. Free standard shipping on orders over GHS 300.
+              Fast, reliable delivery across Ghana. After you order, our team contacts you to confirm your delivery fee.
             </p>
           </div>
         </div>
@@ -85,11 +85,11 @@ export default function ShippingPage() {
 
         <div className="bg-gray-100 border-2 border-gray-200 rounded-2xl p-8 mb-16 text-center">
           <div className="w-16 h-16 bg-gray-900 rounded-full flex items-center justify-center mx-auto mb-4">
-            <i className="ri-gift-line text-3xl text-white"></i>
+            <i className="ri-customer-service-2-line text-3xl text-white"></i>
           </div>
-          <h3 className="text-2xl font-bold text-gray-900 mb-3">Free Standard Shipping</h3>
+          <h3 className="text-2xl font-bold text-gray-900 mb-3">How Delivery Charges Work</h3>
           <p className="text-lg text-gray-600">
-            Spend GHS 300 or more and get <span className="font-bold text-gray-900">FREE standard delivery</span> anywhere in Ghana
+            Checkout covers your items only. Once your order is placed, <span className="font-bold text-gray-900">our team calls you</span> to confirm your delivery location and the exact delivery fee, which you settle separately. Store pickup is always free.
           </p>
         </div>
 
@@ -102,8 +102,7 @@ export default function ShippingPage() {
                   <tr>
                     <th className="px-6 py-4 text-left text-sm font-bold text-gray-900">Zone</th>
                     <th className="px-6 py-4 text-left text-sm font-bold text-gray-900">Areas Covered</th>
-                    <th className="px-6 py-4 text-left text-sm font-bold text-gray-900">Standard</th>
-                    <th className="px-6 py-4 text-left text-sm font-bold text-gray-900">Express</th>
+                    <th className="px-6 py-4 text-left text-sm font-bold text-gray-900">Estimated Delivery</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
@@ -112,7 +111,6 @@ export default function ShippingPage() {
                       <td className="px-6 py-4 font-medium text-gray-900">{zone.zone}</td>
                       <td className="px-6 py-4 text-gray-600 text-sm">{zone.areas}</td>
                       <td className="px-6 py-4 text-gray-900">{zone.standard}</td>
-                      <td className="px-6 py-4 text-gray-900">{zone.express}</td>
                     </tr>
                   ))}
                 </tbody>

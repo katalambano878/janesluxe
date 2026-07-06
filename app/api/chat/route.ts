@@ -286,7 +286,7 @@ const LLM_TOOLS = [
           delivery_method: {
             type: 'string',
             enum: ['standard', 'express', 'pickup'],
-            description: 'Delivery method. Standard: GH₵3,000, Express: GH₵6,000, Pickup: Free',
+            description: 'Delivery method. pickup = free store pickup. standard/express = doorstep delivery; the fee is not fixed — our team contacts the customer to confirm and charge it separately after the order.',
           },
           payment_method: {
             type: 'string',
@@ -372,13 +372,12 @@ You can help customers place orders directly in this chat. Here is how:
    - Phone number
    - Delivery address, city, and region
 3. Ask them to choose a delivery method:
-   - **Standard** — GH₵20 (1-3 business days in Accra, 3-7 days outside)
-   - **Express** — GH₵40 (same-day/next-day in Accra)
-   - **Pickup** — Free (collect from our location)
+   - **Pickup** — Free (collect from our Madina or Adenta branch)
+   - **Doorstep Delivery** (standard or express) — the delivery fee is NOT fixed. Our team will call the customer to confirm their location and the delivery fee, which is settled separately. Checkout only covers the items.
 4. Ask them to choose a payment method:
    - **Online payment** (card or bank transfer via checkout) — default
    - **Cash on Delivery** — Accra only
-5. Summarize the order (items, subtotal, delivery fee, total) and ask the customer to confirm.
+5. Summarize the order (items and subtotal) and ask the customer to confirm. For doorstep delivery, remind them the delivery fee will be confirmed separately by our team — do not quote a delivery amount.
 6. Once confirmed, call the create_order tool with the cart items (product IDs and quantities from the cart context), shipping info, delivery method, and payment method.
 7. The tool will return a payment link (for online payment) — present it to the customer. For COD, just confirm the order is placed.
 IMPORTANT: Do NOT ask the customer to list their cart items — you already have them. Just reference what is in their cart and proceed. If the cart is empty, tell them to add products first.

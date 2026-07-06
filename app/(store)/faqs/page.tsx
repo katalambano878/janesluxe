@@ -45,7 +45,7 @@ export default function FAQsPage() {
     {
       category: 'shipping',
       question: 'How much does shipping cost?',
-      answer: 'Shipping costs vary by destination and delivery option. You will see the exact shipping fee at checkout before payment.'
+      answer: 'Store pickup is free. For doorstep delivery, the fee is not fixed — after you place your order, our team contacts you to confirm your location and the delivery fee, which is settled separately. Checkout only covers the cost of your items.'
     },
     {
       category: 'shipping',

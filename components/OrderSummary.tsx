@@ -13,9 +13,11 @@ interface OrderSummaryProps {
   shipping: number;
   tax: number;
   total: number;
+  /** Text to show for the shipping row when shipping is 0 (e.g. "FREE" or "Billed after order"). */
+  shippingLabel?: string;
 }
 
-export default function OrderSummary({ items, subtotal, shipping, tax, total }: OrderSummaryProps) {
+export default function OrderSummary({ items, subtotal, shipping, tax, total, shippingLabel = 'FREE' }: OrderSummaryProps) {
   return (
     <div className="bg-white rounded-xl shadow-sm p-6 sticky top-4">
       <h2 className="text-xl font-bold text-gray-900 mb-6">Order Summary</h2>
@@ -50,7 +52,7 @@ export default function OrderSummary({ items, subtotal, shipping, tax, total }: 
         <div className="flex justify-between text-gray-700">
           <span>Shipping</span>
           <span className="font-semibold">
-            {shipping === 0 ? 'FREE' : `GH₵ ${shipping.toFixed(2)}`}
+            {shipping === 0 ? shippingLabel : `GH₵ ${shipping.toFixed(2)}`}
           </span>
         </div>
 

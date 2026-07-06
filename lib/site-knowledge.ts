@@ -50,7 +50,7 @@ Support Hours: Monday to Saturday, 9 AM - 6 PM GMT`,
     category: "shipping",
     content: `YOUR_BRAND_NAME ships from Accra, Ghana and offers nationwide and worldwide delivery.
 
-Shipping fees and delivery timelines depend on destination and are shown at checkout.
+Store pickup is free. For doorstep delivery, the delivery fee is not fixed — our team contacts the customer after the order to confirm their location and the delivery fee, which is settled separately. Checkout covers the items only.
 
 Customers receive order updates and can track orders using order number and email.`,
     keywords: ["shipping", "delivery", "worldwide", "international", "timeline", "tracking", "accra", "ghana", "YOUR_BRAND_NAME"],

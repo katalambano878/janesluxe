@@ -407,9 +407,12 @@ interface ChatShippingInfo {
   region: string;
 }
 
+// Delivery fees are not fixed: for doorstep delivery our team contacts the
+// customer to confirm and charge the fee separately, so checkout only bills
+// for the items. Pickup is free.
 const DELIVERY_COSTS: Record<string, number> = {
-  standard: 20,
-  express: 40,
+  standard: 0,
+  express: 0,
   pickup: 0,
 };
 
@@ -703,7 +706,7 @@ export async function createChatOrder(
             orderNumber,
             total,
             paymentUrl: result.data.authorization_url,
-            message: `Order ${orderNumber} created successfully! Total: GH₵${total.toFixed(2)} (including GH₵${shippingCost.toFixed(2)} delivery). Please complete your payment using the link below.`,
+            message: `Order ${orderNumber} created successfully! Items total: GH₵${total.toFixed(2)}. For doorstep delivery, our team will contact you to confirm the delivery fee separately. Please complete your payment for the items using the link below.`,
           };
         } else {
           return {
@@ -729,7 +732,7 @@ export async function createChatOrder(
       success: true,
       orderNumber,
       total,
-      message: `Order ${orderNumber} placed successfully! Total: GH₵${total.toFixed(2)} (including GH₵${shippingCost.toFixed(2)} delivery). Payment: Cash on Delivery. Your order will be delivered to ${sanitizedShipping.address}, ${sanitizedShipping.city}.`,
+      message: `Order ${orderNumber} placed successfully! Items total: GH₵${total.toFixed(2)}. For doorstep delivery, our team will contact you to confirm the delivery fee separately. Your order will be delivered to ${sanitizedShipping.address}, ${sanitizedShipping.city}.`,
     };
   } catch (err: any) {
     console.error('[ChatTools] createChatOrder error:', err);

@@ -566,6 +566,7 @@ export default function CheckoutPage() {
               shipping={shippingCost}
               tax={tax}
               total={total}
+              shippingLabel={deliveryMethod === 'pickup' ? 'FREE' : 'Billed after order'}
             />
           </div>
         </div>
