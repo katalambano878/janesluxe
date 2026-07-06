@@ -2,10 +2,13 @@
  * Moolre payment gateway helpers.
  *
  * Docs: https://docs.moolre.com
- *  - Generate Payment Link:  POST https://api.moolre.com/embed/link
- *  - Payment Status:         POST https://api.moolre.com/open/transact/status
+ *  - Generate Payment Link:  POST https://api.moolre.com/embed/link      (X-API-PUBKEY)
+ *  - Payment Status:         POST https://api.moolre.com/open/transact/status (X-API-PUBKEY)
  *
- * Auth headers: X-API-USER + X-API-PUBKEY (PUBKEY not required in sandbox).
+ * Both endpoints authenticate with X-API-USER + X-API-PUBKEY (the PUBLIC key).
+ * Moolre also IP-whitelists API callers, so requests only succeed from the
+ * whitelisted server/host (add every deploy origin's egress IP in the Moolre
+ * dashboard). PUBKEY headers are not required in sandbox.
  */
 
 const MOOLRE_BASE = (process.env.MOOLRE_BASE_URL || 'https://api.moolre.com').replace(/\/+$/, '');
@@ -19,23 +22,14 @@ export function isMoolreConfigured(): boolean {
 }
 
 /**
- * The `/embed/link` endpoint authenticates with the PUBLIC key (X-API-PUBKEY).
- * The `/open/transact/*` endpoints (incl. payment status) authenticate with the
- * PRIVATE key (X-API-KEY). They are different keys in the Moolre dashboard.
+ * Both the `/embed/link` and `/open/transact/status` (Payment Status) endpoints
+ * authenticate with the PUBLIC key (X-API-PUBKEY) per Moolre's API 2.0 docs.
  */
 function moolrePublicHeaders(): Record<string, string> {
     return {
         'Content-Type': 'application/json',
         'X-API-USER': process.env.MOOLRE_API_USER || '',
         'X-API-PUBKEY': process.env.MOOLRE_API_PUBKEY || '',
-    };
-}
-
-function moolrePrivateHeaders(): Record<string, string> {
-    return {
-        'Content-Type': 'application/json',
-        'X-API-USER': process.env.MOOLRE_API_USER || '',
-        'X-API-KEY': process.env.MOOLRE_API_KEY || '',
     };
 }
 
@@ -99,7 +93,7 @@ export async function moolreGenerateLink(params: {
 }
 
 export function canVerifyMoolreStatus(): boolean {
-    return !!process.env.MOOLRE_API_KEY;
+    return !!(process.env.MOOLRE_API_USER && process.env.MOOLRE_API_PUBKEY);
 }
 
 export interface MoolreStatusResult {
@@ -117,17 +111,18 @@ export interface MoolreStatusResult {
  * Check the final status of a payment by its external reference.
  * txstatus === 1 means the collection succeeded.
  *
- * Requires MOOLRE_API_KEY (private key). If it's missing or rejected, the
- * result is flagged authError so callers can fall back to the webhook.
+ * Authenticates with the PUBLIC key (X-API-PUBKEY). If credentials are missing
+ * or Moolre rejects them (AIN01/SS00), the result is flagged authError so
+ * callers can fall back to the secret-gated webhook body.
  */
 export async function moolreCheckStatus(externalref: string): Promise<MoolreStatusResult> {
-    if (!process.env.MOOLRE_API_KEY) {
+    if (!process.env.MOOLRE_API_PUBKEY || !process.env.MOOLRE_API_USER) {
         return { paid: false, authError: true };
     }
     try {
         const res = await fetch(`${MOOLRE_BASE}/open/transact/status`, {
             method: 'POST',
-            headers: moolrePrivateHeaders(),
+            headers: moolrePublicHeaders(),
             body: JSON.stringify({
                 type: 1,
                 idtype: '1', // 1 = our unique externalref
@@ -138,8 +133,9 @@ export async function moolreCheckStatus(externalref: string): Promise<MoolreStat
 
         const json = await res.json().catch(() => ({}));
         const data = json?.data || {};
-        // SS00 = authentication error from Moolre.
-        const authError = json?.code === 'SS00';
+        // Moolre auth-failure codes (wrong/missing key, or non-whitelisted IP).
+        const code = typeof json?.code === 'string' ? json.code : '';
+        const authError = code === 'AIN01' || code === 'SS00';
         const paid = json?.status === 1 && Number(data?.txstatus) === 1;
 
         const rawAmount =
