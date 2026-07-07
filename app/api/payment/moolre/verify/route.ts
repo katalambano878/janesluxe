@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import { sendOrderConfirmation } from '@/lib/notifications';
 import { checkRateLimit, getClientIdentifier, RATE_LIMITS } from '@/lib/rate-limit';
-import { isMoolreConfigured, moolreCheckStatus } from '@/lib/moolre';
+import { isMoolreConfigured, moolreCheckStatus, moolreListTransactions } from '@/lib/moolre';
 
 /**
  * Moolre payment verification endpoint.
@@ -37,7 +37,7 @@ export async function POST(req: Request) {
 
         const { data: order, error: fetchError } = await supabaseAdmin
             .from('orders')
-            .select('id, order_number, payment_status, status, total, email, phone, shipping_address, metadata, payment_method')
+            .select('id, order_number, payment_status, status, total, email, phone, shipping_address, metadata, payment_method, created_at')
             .eq('order_number', orderNumber)
             .single();
 
@@ -81,6 +81,33 @@ export async function POST(req: Request) {
                 verified = status;
                 verifiedRef = ref;
                 break;
+            }
+        }
+
+        // Fallback: the customer may have paid a different attempt reference
+        // than the ones we stored (e.g. an earlier or re-generated link).
+        // Search Moolre's successful transactions around the order date and
+        // match strictly by the order-number reference prefix.
+        if (!verified) {
+            const created = new Date(order.created_at);
+            const fmt = (d: Date) => d.toISOString().slice(0, 19).replace('T', ' ');
+            const startdate = fmt(new Date(created.getTime() - 24 * 60 * 60 * 1000));
+            const enddate = fmt(new Date(created.getTime() + 45 * 24 * 60 * 60 * 1000));
+
+            const list = await moolreListTransactions({ startdate, enddate, status: '1', limit: '500' });
+            if (list.ok) {
+                const m = list.transactions.find((t) => {
+                    const ref = String(t.externalref || '');
+                    return Number(t.txstatus) === 1 && (ref === orderNumber || ref.startsWith(`${orderNumber}-R`));
+                });
+                if (m) {
+                    const amt = Number(m.amount !== undefined ? m.amount : m.value);
+                    const expected = Number(order.total);
+                    if (Number.isNaN(amt) || Math.abs(amt - expected) <= 0.01) {
+                        verified = { paid: true, authError: false, amount: amt, transactionId: m.transactionid, paidAt: m.ts };
+                        verifiedRef = m.externalref && m.externalref !== '0' ? m.externalref : orderNumber;
+                    }
+                }
             }
         }
 
