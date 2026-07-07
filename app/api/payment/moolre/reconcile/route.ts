@@ -28,13 +28,17 @@ function txAmount(t: MoolreTransaction): number {
 }
 
 export async function POST(req: Request) {
-    // Allow either an authenticated admin session or the shared Moolre secret
-    // (?key=) so the reconciliation can also be run as an ops/cron task.
+    // Allow an authenticated admin session, the shared Moolre secret (?key=),
+    // or the service-role key (x-admin-key header) so the reconciliation can be
+    // run as an ops task.
     const secret = process.env.MOOLRE_CALLBACK_SECRET;
     const providedKey = new URL(req.url).searchParams.get('key');
     const secretOk = !!secret && providedKey === secret;
 
-    if (!secretOk) {
+    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    const serviceKeyOk = !!serviceKey && req.headers.get('x-admin-key') === serviceKey;
+
+    if (!secretOk && !serviceKeyOk) {
         const auth = await verifyAuth(req, { requireAdmin: true });
         if (!auth.authenticated) {
             return NextResponse.json({ success: false, message: auth.error || 'Unauthorized' }, { status: 401 });
