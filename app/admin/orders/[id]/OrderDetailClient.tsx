@@ -3,7 +3,6 @@
 import Link from 'next/link';
 import { useState, useEffect } from 'react';
 import FraudDetectionAlert from '@/components/FraudDetectionAlert';
-import { supabase } from '@/lib/supabase';
 
 interface OrderDetailClientProps {
   orderId: string;
@@ -101,15 +100,12 @@ export default function OrderDetailClient({ orderId }: OrderDetailClientProps) {
       const trackingChanged = trackingNumber !== order.metadata?.tracking_number;
 
       if (statusChanged || (trackingChanged && trackingNumber)) {
-        // Get auth token for notification API
-        const { data: { session } } = await supabase.auth.getSession();
-        const authToken = session?.access_token;
-
+        // The admin cookie session authenticates the notification API.
         fetch('/api/notifications', {
           method: 'POST',
-          headers: { 
+          credentials: 'include',
+          headers: {
             'Content-Type': 'application/json',
-            ...(authToken && { 'Authorization': `Bearer ${authToken}` })
           },
           body: JSON.stringify({
             type: 'order_status',
@@ -192,11 +188,7 @@ export default function OrderDetailClient({ orderId }: OrderDetailClientProps) {
     
     try {
       setResendingNotification(true);
-      
-      // Get auth token
-      const { data: { session } } = await supabase.auth.getSession();
-      const authToken = session?.access_token;
-      
+
       const shippingAddress = order.shipping_address || {};
       const customerName = (shippingAddress.firstName && shippingAddress.lastName)
         ? `${shippingAddress.firstName.trim()} ${shippingAddress.lastName.trim()}`
@@ -204,9 +196,9 @@ export default function OrderDetailClient({ orderId }: OrderDetailClientProps) {
       
       const response = await fetch('/api/notifications', {
         method: 'POST',
-        headers: { 
+        credentials: 'include',
+        headers: {
           'Content-Type': 'application/json',
-          ...(authToken && { 'Authorization': `Bearer ${authToken}` })
         },
         body: JSON.stringify({
           type: 'order_status',

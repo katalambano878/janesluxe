@@ -2,7 +2,6 @@
 
 import Link from 'next/link';
 import { useState, useEffect } from 'react';
-import { supabase } from '@/lib/supabase';
 import ProductSalesStats from './ProductSalesStats';
 import { useAdminBranch } from '@/context/AdminBranchContext';
 
@@ -219,17 +218,14 @@ export default function AdminOrdersPage() {
           )
         );
 
-        // Send Notifications with auth token
-        const { data: { session } } = await supabase.auth.getSession();
-        const authToken = session?.access_token;
-        
+        // Send Notifications — the admin cookie session authenticates the API.
         const updatedOrders = orders.filter(o => selectedOrders.includes(o.id));
         updatedOrders.forEach(order => {
           fetch('/api/notifications', {
             method: 'POST',
-            headers: { 
+            credentials: 'include',
+            headers: {
               'Content-Type': 'application/json',
-              ...(authToken && { 'Authorization': `Bearer ${authToken}` })
             },
             body: JSON.stringify({
               type: 'order_updated',
@@ -286,6 +282,7 @@ export default function AdminOrdersPage() {
     try {
       const response = await fetch('/api/notifications', {
         method: 'POST',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           type: 'payment_link',

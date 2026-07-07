@@ -13,6 +13,46 @@ export interface AuthResult {
 }
 
 /**
+ * Extract the Supabase access token from either the Authorization header
+ * (Bearer) or the cookies set by the admin login route
+ * (`sb-<projectRef>-access-token`). The admin panel uses a cookie session, not
+ * the browser Supabase client's localStorage session, so header-only lookups
+ * fail for admin actions.
+ */
+function extractAccessToken(request: Request): string | null {
+    const authHeader = request.headers.get('authorization');
+    if (authHeader?.startsWith('Bearer ')) {
+        const t = authHeader.slice(7).trim();
+        if (t) return t;
+    }
+
+    const cookieHeader = request.headers.get('cookie') || '';
+    const scopedMatch = cookieHeader.match(/\bsb-[a-z0-9]+-access-token=([^;]+)/i);
+    if (scopedMatch) return decodeURIComponent(scopedMatch[1].trim());
+    const plainMatch = cookieHeader.match(/\bsb-access-token=([^;]+)/);
+    if (plainMatch) return decodeURIComponent(plainMatch[1].trim());
+
+    const authCookie = cookieHeader
+        .split(';')
+        .map((c) => c.trim())
+        .find((c) => c.startsWith('sb-') && (c.includes('-auth-token') || c.includes('auth')));
+    if (authCookie) {
+        const value = authCookie.split('=').slice(1).join('=').trim();
+        const decoded = decodeURIComponent(value);
+        try {
+            const parsed = JSON.parse(decoded);
+            if (Array.isArray(parsed) && parsed[0]) return parsed[0];
+            if (parsed?.access_token) return parsed.access_token;
+            if (typeof parsed === 'string') return parsed;
+        } catch {
+            return decoded;
+        }
+    }
+
+    return null;
+}
+
+/**
  * Verify that the request has a valid Supabase session
  * and optionally check for admin/staff role.
  */
@@ -20,8 +60,7 @@ export async function verifyAuth(
     request: Request,
     options: { requireAdmin?: boolean } = {}
 ): Promise<AuthResult> {
-    const authHeader = request.headers.get('authorization');
-    const token = authHeader?.replace('Bearer ', '');
+    const token = extractAccessToken(request);
 
     if (!token) {
         return { authenticated: false, error: 'Missing authorization token' };
