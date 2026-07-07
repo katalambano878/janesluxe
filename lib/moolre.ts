@@ -154,3 +154,77 @@ export async function moolreCheckStatus(externalref: string): Promise<MoolreStat
         return { paid: false, authError: false };
     }
 }
+
+export interface MoolreTransaction {
+    txstatus?: number;
+    txtype?: number;
+    amount?: string;
+    value?: string;
+    transactionid?: string;
+    externalref?: string;
+    thirdpartyref?: string;
+    payer?: string;
+    ts?: string;
+}
+
+export interface MoolreListResult {
+    ok: boolean;
+    authError: boolean;
+    transactions: MoolreTransaction[];
+    message?: string;
+    raw?: any;
+}
+
+/**
+ * List account transactions in a date window (List Transactions API).
+ * Used to reconcile payments that succeeded under a different attempt
+ * reference than the one currently stored on the order.
+ */
+export async function moolreListTransactions(params: {
+    startdate: string;
+    enddate: string;
+    status?: '0' | '1' | '2';
+    limit?: string;
+}): Promise<MoolreListResult> {
+    if (!process.env.MOOLRE_API_PUBKEY || !process.env.MOOLRE_API_USER) {
+        return { ok: false, authError: true, transactions: [] };
+    }
+    try {
+        // This endpoint documents X-API-KEY; send both the public key and the
+        // private key (when set) alongside X-API-USER so it works regardless.
+        const headers: Record<string, string> = {
+            ...moolrePublicHeaders(),
+        };
+        if (process.env.MOOLRE_API_KEY) headers['X-API-KEY'] = process.env.MOOLRE_API_KEY;
+
+        const res = await fetch(`${MOOLRE_BASE}/open/account/status`, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({
+                type: 2,
+                accountnumber: process.env.MOOLRE_ACCOUNT_NUMBER || '',
+                startdate: params.startdate,
+                enddate: params.enddate,
+                limit: params.limit || '200',
+                ...(params.status !== undefined ? { status: params.status } : {}),
+            }),
+        });
+
+        const json = await res.json().catch(() => ({}));
+        const code = typeof json?.code === 'string' ? json.code : '';
+        const authError = code === 'AIN01' || code === 'SS00';
+        const transactions: MoolreTransaction[] = Array.isArray(json?.data?.transactions)
+            ? json.data.transactions
+            : [];
+
+        return {
+            ok: json?.status === 1,
+            authError,
+            transactions,
+            message: json?.message,
+            raw: json,
+        };
+    } catch (err: any) {
+        return { ok: false, authError: false, transactions: [], message: err?.message };
+    }
+}
