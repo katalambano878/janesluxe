@@ -56,12 +56,18 @@ export async function POST(request: Request) {
                 return NextResponse.json({ error: 'Missing order identifier' }, { status: 400 });
             }
 
-            const orderRef = payload.order_number || payload.id;
-            const { data: order, error: orderError } = await supabaseAdmin
+            const orderRef = String(payload.order_number || payload.id);
+            const isUUID =
+              /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+                orderRef
+              );
+            let orderQuery = supabaseAdmin
                 .from('orders')
-                .select('id, order_number, created_at')
-                .or(`order_number.eq.${orderRef},id.eq.${orderRef}`)
-                .single();
+                .select('id, order_number, created_at');
+            orderQuery = isUUID
+                ? orderQuery.eq('id', orderRef)
+                : orderQuery.eq('order_number', orderRef);
+            const { data: order, error: orderError } = await orderQuery.single();
 
             if (orderError || !order) {
                 return NextResponse.json({ error: 'Order not found' }, { status: 404 });

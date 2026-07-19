@@ -1,3 +1,5 @@
+import { isMoolreConfigured, moolreGenerateLink } from './moolre';
+
 // ─── Types ──────────────────────────────────────────────────────────────────
 
 export type ChatProduct = {
@@ -492,9 +494,12 @@ export async function createChatOrder(
   if (!['standard', 'express', 'pickup'].includes(deliveryMethod)) {
     return { success: false, message: 'Invalid delivery method.' };
   }
-  if (!['paystack', 'cod'].includes(paymentMethod)) {
+  if (!['moolre', 'paystack', 'cod'].includes(paymentMethod)) {
     return { success: false, message: 'Invalid payment method.' };
   }
+  // Online payments go through Moolre. 'paystack' is still accepted from older
+  // clients but is treated as Moolre so no order gets stranded on a dead gateway.
+  const resolvedPaymentMethod = paymentMethod === 'cod' ? 'cod' : 'moolre';
 
   // Rate-limit order creation per email to prevent spam/abuse
   const rateLimitKey = shipping.email.toLowerCase().trim();
@@ -583,7 +588,7 @@ export async function createChatOrder(
         discount_total: 0,
         total,
         shipping_method: deliveryMethod,
-        payment_method: paymentMethod,
+        payment_method: resolvedPaymentMethod,
         shipping_address: shippingData,
         billing_address: shippingData,
         metadata: {
@@ -644,68 +649,60 @@ export async function createChatOrder(
       console.error('[ChatTools] upsert customer error:', e);
     }
 
-    // Handle payment
-    if (paymentMethod === 'paystack') {
+    // Handle online payment via Moolre (the active gateway).
+    if (resolvedPaymentMethod === 'moolre') {
       try {
-        const paystackSecretKey = process.env.PAYSTACK_SECRET_KEY;
-        const baseUrl = (process.env.NEXT_PUBLIC_APP_URL || '').replace(/\/+$/, '');
-
-        if (!paystackSecretKey) {
+        if (!isMoolreConfigured()) {
           return {
             success: true,
             orderNumber,
             total,
-            message: `Order ${orderNumber} created (GH₵${total.toFixed(2)}), but payment gateway is not configured. Please complete payment through the website.`,
+            message: `Order ${orderNumber} created (GH₵${total.toFixed(2)}), but the payment gateway is not configured yet. Our team will contact you to complete payment.`,
           };
         }
 
-        const uniqueRef = `${orderNumber}-R${Date.now()}`;
-        const payload = {
-          email: sanitizedShipping.email,
-          amount: Math.round(total * 100), // Paystack expects kobo
-          currency: 'GHS',
-          reference: uniqueRef,
-          callback_url: `${baseUrl}/order-success?order=${orderNumber}&payment_success=true`,
+        const baseUrl = (process.env.NEXT_PUBLIC_APP_URL || '').replace(/\/+$/, '');
+        // Unique reference per attempt so retries don't collide with Moolre's
+        // duplicate-transaction guard.
+        const externalref = `${orderNumber}-R${Date.now()}`;
+        const callbackSecret = process.env.MOOLRE_CALLBACK_SECRET || '';
+        const callbackUrl = `${baseUrl}/api/payment/moolre/callback${callbackSecret ? `?key=${encodeURIComponent(callbackSecret)}` : ''}`;
+        const redirectUrl = `${baseUrl}/order-success?order=${encodeURIComponent(orderNumber)}&payment_success=true`;
+
+        const result = await moolreGenerateLink({
+          amount: total,
+          externalref,
+          callback: callbackUrl,
+          redirect: redirectUrl,
           metadata: {
             order_number: orderNumber,
             order_id: order.id,
             customer_email: sanitizedShipping.email,
             source: 'chat',
           },
-          channels: ['card', 'bank', 'ussd', 'qr', 'mobile_money', 'bank_transfer'],
-        };
+        });
 
-        // Save Paystack reference on the order so verify can find it later
+        // Persist the reference so verify/callback can look it up later.
         try {
           await supabaseAdmin
             .from('orders')
             .update({
               metadata: {
                 ...(order.metadata || {}),
-                paystack_reference: uniqueRef,
-                paystack_init_at: new Date().toISOString(),
+                moolre_externalref: externalref,
+                moolre_reference: result.reference || null,
+                moolre_init_at: new Date().toISOString(),
               },
             })
             .eq('id', order.id);
         } catch {}
 
-        const response = await fetch('https://api.paystack.co/transaction/initialize', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${paystackSecretKey}`,
-          },
-          body: JSON.stringify(payload),
-        });
-
-        const result = await response.json();
-
-        if (result.status === true && result.data?.authorization_url) {
+        if (result.ok && result.url) {
           return {
             success: true,
             orderNumber,
             total,
-            paymentUrl: result.data.authorization_url,
+            paymentUrl: result.url,
             message: `Order ${orderNumber} created successfully! Items total: GH₵${total.toFixed(2)}. For doorstep delivery, our team will contact you to confirm the delivery fee separately. Please complete your payment for the items using the link below.`,
           };
         } else {
@@ -717,7 +714,7 @@ export async function createChatOrder(
           };
         }
       } catch (payErr: any) {
-        console.error('[ChatTools] Paystack payment error:', payErr);
+        console.error('[ChatTools] Moolre payment error:', payErr);
         return {
           success: true,
           orderNumber,

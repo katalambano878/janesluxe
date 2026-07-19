@@ -78,10 +78,11 @@ export async function POST(request: Request) {
       let productId = item.id;
 
       if (!isValidUUID(productId)) {
+        // Look up by slug only — never filter uuid id with a non-UUID value.
         const { data: product } = await supabaseAdmin
           .from('products')
           .select('id, metadata')
-          .or(`slug.eq.${productId},id.eq.${productId}`)
+          .eq('slug', productId)
           .single();
 
         if (product) {

@@ -1,12 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { supabaseAdmin } from '@/lib/supabase-admin';
+import { verifyAuth } from '@/lib/auth';
 
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const auth = await verifyAuth(req, { requireAdmin: true });
+  if (!auth.authenticated) return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 });
 
-export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const { data, error } = await supabaseAdmin
     .from('support_ticket_messages')
@@ -19,6 +18,9 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 }
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const auth = await verifyAuth(req, { requireAdmin: true });
+  if (!auth.authenticated) return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 });
+
   const { id } = await params;
   const body = await req.json();
 

@@ -1,12 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
-
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+import { supabaseAdmin } from '@/lib/supabase-admin';
+import { verifyAuth } from '@/lib/auth';
 
 export async function GET(req: NextRequest) {
+  const auth = await verifyAuth(req, { requireAdmin: true });
+  if (!auth.authenticated) return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 });
+
   const { searchParams } = new URL(req.url);
   const days = parseInt(searchParams.get('days') || '30');
   const since = new Date(Date.now() - days * 86400000).toISOString();

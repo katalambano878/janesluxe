@@ -291,7 +291,7 @@ export default function PaymentPage() {
         <div className="mt-6 text-center">
           <p className="text-xs text-gray-500 flex items-center justify-center">
             <i className="ri-lock-line mr-1"></i>
-            Secure payment powered by Paystack
+            Secure payment powered by Moolre
           </p>
         </div>
 

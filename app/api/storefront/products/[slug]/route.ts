@@ -37,7 +37,7 @@ export async function GET(
       .eq('status', 'active');
 
     if (isUUID) {
-      query = query.or(`id.eq.${slug},slug.eq.${slug}`);
+      query = query.eq('id', slug);
     } else {
       query = query.eq('slug', slug);
     }

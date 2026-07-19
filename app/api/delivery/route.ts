@@ -1,14 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
-
-const supabaseAdmin = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { auth: { autoRefreshToken: false, persistSession: false } }
-);
+import { supabaseAdmin } from '@/lib/supabase-admin';
 
 async function getAuthUser(req: NextRequest) {
-    const token = req.cookies.get('sb-access-token')?.value;
+    const cookieHeader = req.headers.get('cookie') || '';
+    const bearer = req.headers.get('authorization')?.replace(/^Bearer\s+/i, '').trim();
+    const token = bearer
+        || cookieHeader.match(/\bsb-[a-z0-9]+-access-token=([^;]+)/i)?.[1]
+        || cookieHeader.match(/\bsb-access-token=([^;]+)/)?.[1];
     if (!token) return null;
     const { data: { user }, error } = await supabaseAdmin.auth.getUser(token);
     if (error || !user) return null;

@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { isPlainPostgres } from '@/lib/db/mode';
+import { signInWithPassword } from '@/lib/db/auth';
+import { supabaseAdmin } from '@/lib/supabase-admin';
 
 function decodeJwtPayload(token: string): Record<string, unknown> | null {
   try {
@@ -13,20 +16,18 @@ function decodeJwtPayload(token: string): Record<string, unknown> | null {
   }
 }
 
+function cookieProjectRef(supabaseUrl: string): string {
+  // Hosted Supabase: tvfyqdhftueognjstlwq.supabase.co → tvfyqdhftueognjstlwq
+  // Plain PG (own domain): www.janesluxe.com → www (or hostname label)
+  const host = supabaseUrl.split('//')[1]?.split('/')[0] || '';
+  if (host.includes('supabase.co')) {
+    return host.split('.')[0] || 'local';
+  }
+  // Prefer a stable cookie namespace for our own domain.
+  return host.split('.')[0] || 'local';
+}
+
 export async function POST(request: NextRequest) {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-  if (!supabaseUrl || !supabaseAnonKey || !serviceRoleKey) {
-    return NextResponse.json({ error: 'Server misconfiguration' }, { status: 503 });
-  }
-
-  const projectRef = supabaseUrl.split('//')[1]?.split('.')[0] || '';
-  if (!projectRef) {
-    return NextResponse.json({ error: 'Invalid Supabase URL' }, { status: 503 });
-  }
-
   const body = await request.json().catch(() => ({}));
   const email = typeof body?.email === 'string' ? body.email.trim() : '';
   const password = typeof body?.password === 'string' ? body.password : '';
@@ -34,39 +35,71 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Email and password are required' }, { status: 400 });
   }
 
-  const authResponse = await fetch(`${supabaseUrl}/auth/v1/token?grant_type=password`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      apikey: supabaseAnonKey,
-      Authorization: `Bearer ${supabaseAnonKey}`,
-    },
-    body: JSON.stringify({ email, password }),
-  });
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+  const projectRef = cookieProjectRef(supabaseUrl || 'https://local.janesluxe.com');
 
-  const authJson = await authResponse.json().catch(() => null);
-  if (!authResponse.ok || !authJson?.access_token || !authJson?.refresh_token) {
-    return NextResponse.json({ error: 'Invalid login credentials' }, { status: 401 });
+  let accessToken: string;
+  let refreshToken: string;
+  let userId: string | undefined;
+
+  if (isPlainPostgres()) {
+    const { session, error } = await signInWithPassword(email, password);
+    if (error || !session) {
+      return NextResponse.json({ error: 'Invalid login credentials' }, { status: 401 });
+    }
+    accessToken = session.access_token;
+    refreshToken = session.refresh_token;
+    userId = session.user.id;
+  } else {
+    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+    if (!supabaseUrl || !supabaseAnonKey || !serviceRoleKey) {
+      return NextResponse.json({ error: 'Server misconfiguration' }, { status: 503 });
+    }
+
+    const authResponse = await fetch(`${supabaseUrl}/auth/v1/token?grant_type=password`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        apikey: supabaseAnonKey,
+        Authorization: `Bearer ${supabaseAnonKey}`,
+      },
+      body: JSON.stringify({ email, password }),
+    });
+
+    const authJson = await authResponse.json().catch(() => null);
+    if (!authResponse.ok || !authJson?.access_token || !authJson?.refresh_token) {
+      return NextResponse.json({ error: 'Invalid login credentials' }, { status: 401 });
+    }
+
+    accessToken = String(authJson.access_token);
+    refreshToken = String(authJson.refresh_token);
+    const payload = decodeJwtPayload(accessToken);
+    userId =
+      (authJson?.user?.id as string | undefined) || (payload?.sub as string | undefined);
   }
-
-  const accessToken = String(authJson.access_token);
-  const refreshToken = String(authJson.refresh_token);
-  const payload = decodeJwtPayload(accessToken);
-  const userId = (authJson?.user?.id as string | undefined) || (payload?.sub as string | undefined);
 
   if (!userId) {
     return NextResponse.json({ error: 'Could not resolve user' }, { status: 401 });
   }
 
-  const admin = createClient(supabaseUrl, serviceRoleKey, {
-    auth: { autoRefreshToken: false, persistSession: false },
-  });
-
-  const { data: profile } = await admin
-    .from('profiles')
-    .select('role')
-    .eq('id', userId)
-    .maybeSingle();
+  // Role check via admin client (pg compat or service-role).
+  let profile: { role: string } | null = null;
+  if (isPlainPostgres()) {
+    const { data } = await supabaseAdmin
+      .from('profiles')
+      .select('role')
+      .eq('id', userId)
+      .maybeSingle();
+    profile = data;
+  } else {
+    const admin = createClient(supabaseUrl, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+    const { data } = await admin.from('profiles').select('role').eq('id', userId).maybeSingle();
+    profile = data;
+  }
 
   if (!profile || String(profile.role) !== 'admin') {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });

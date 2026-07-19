@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
 import {
   searchProducts,
   getProductForCart,
@@ -21,12 +20,10 @@ import {
   type ChatOrderResult,
 } from '@/lib/chat-tools';
 import { searchSiteKnowledge, getSiteMapSummary } from '@/lib/site-knowledge';
+import { supabaseAdmin } from '@/lib/supabase-admin';
 
 // ─── Env ────────────────────────────────────────────────────────────────────
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const groqKey = process.env.GROQ_API_KEY;
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -290,8 +287,8 @@ const LLM_TOOLS = [
           },
           payment_method: {
             type: 'string',
-            enum: ['paystack', 'cod'],
-            description: 'Payment method. paystack = online payment (card, bank transfer, USSD, mobile money), cod = Cash on Delivery (Accra only)',
+            enum: ['moolre', 'cod'],
+            description: 'Payment method. moolre = online payment (mobile money, card), cod = Cash on Delivery (Accra only)',
           },
         },
         required: ['items', 'shipping', 'delivery_method', 'payment_method'],
@@ -428,32 +425,34 @@ Address the customer by their first name. You can access their orders and profil
 async function detectAuth(request: Request): Promise<{ userId: string | null; email: string | null }> {
   try {
     const cookieHeader = request.headers.get('cookie') || '';
-    const authToken = cookieHeader
-      .split(';')
-      .map((c) => c.trim())
-      .find((c) => c.startsWith('sb-') && c.includes('-auth-token'))
-      ?.split('=')
-      .slice(1)
-      .join('=');
+    const cookies = cookieHeader.split(';').map((c) => c.trim()).filter(Boolean);
 
-    if (!authToken) return { userId: null, email: null };
-
-    const decoded = decodeURIComponent(authToken);
-    let tokenData: any;
-    try {
-      tokenData = JSON.parse(decoded);
-    } catch {
-      tokenData = decoded;
+    let accessToken: string | null = null;
+    for (const c of cookies) {
+      if (/\bsb-[^=]+-access-token=/.test(c) || c.startsWith('sb-access-token=')) {
+        accessToken = decodeURIComponent(c.split('=').slice(1).join('=').trim());
+        break;
+      }
+      if (c.startsWith('sb-') && c.includes('-auth-token=')) {
+        const decoded = decodeURIComponent(c.split('=').slice(1).join('=').trim());
+        try {
+          const tokenData = JSON.parse(decoded);
+          accessToken =
+            (Array.isArray(tokenData) && tokenData[0]) ||
+            tokenData?.access_token ||
+            (typeof tokenData === 'string' ? tokenData : null);
+        } catch {
+          accessToken = decoded;
+        }
+        break;
+      }
     }
 
-    const accessToken = typeof tokenData === 'string' ? tokenData : tokenData?.[0] || tokenData?.access_token;
     if (!accessToken) return { userId: null, email: null };
 
-    const supabase = createClient(supabaseUrl, supabaseKey, {
-      global: { headers: { Authorization: `Bearer ${accessToken}` } },
-    });
-
-    const { data: { user } } = await supabase.auth.getUser();
+    const {
+      data: { user },
+    } = await supabaseAdmin.auth.getUser(accessToken);
     if (user) {
       return { userId: user.id, email: user.email || null };
     }
@@ -485,9 +484,7 @@ export async function POST(request: Request) {
 
     const { userId, email: userEmail } = await detectAuth(request);
 
-    const supabase = supabaseServiceKey
-      ? createClient(supabaseUrl, supabaseServiceKey)
-      : createClient(supabaseUrl, supabaseKey);
+    const supabase = supabaseAdmin;
 
     let profile: ChatCustomerProfile | null = null;
     if (userId) {
@@ -1156,7 +1153,7 @@ async function executeToolCall(
         items: args.items || [],
         shipping: args.shipping || {},
         deliveryMethod: args.delivery_method || 'standard',
-        paymentMethod: args.payment_method || 'paystack',
+        paymentMethod: args.payment_method || 'moolre',
         userId,
       });
 

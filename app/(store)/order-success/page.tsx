@@ -112,10 +112,11 @@ function OrderSuccessContent() {
   const orderDate = new Date(order.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
   const estimatedDelivery = new Date(new Date(order.created_at).getTime() + 7 * 24 * 60 * 60 * 1000).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
   const pointsEarned = Math.floor(order.total / 10); // Example logic: 1 point per 10 currency units
+  const isPaid = order.payment_status === 'paid';
 
   return (
     <main className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-[#F3F3F3]">
-      {showConfetti && (
+      {showConfetti && isPaid && (
         <div className="fixed inset-0 pointer-events-none z-50 overflow-hidden">
           {[...Array(50)].map((_, i) => (
             <div
@@ -137,14 +138,37 @@ function OrderSuccessContent() {
       <section className="py-16">
         <div className="max-w-4xl mx-auto px-4 sm:px-6">
           <div className="bg-white rounded-2xl shadow-xl p-8 md:p-12 text-center mb-8">
-            <div className="w-24 h-24 flex items-center justify-center mx-auto mb-6 bg-gray-100 rounded-full">
-              <i className="ri-checkbox-circle-fill text-6xl text-gray-700"></i>
+            <div className={`w-24 h-24 flex items-center justify-center mx-auto mb-6 rounded-full ${isPaid ? 'bg-gray-100' : 'bg-amber-50'}`}>
+              <i className={`text-6xl ${isPaid ? 'ri-checkbox-circle-fill text-gray-700' : verifying ? 'ri-loader-4-line text-amber-500 animate-spin' : 'ri-time-line text-amber-500'}`}></i>
             </div>
 
-            <h1 className="text-4xl font-bold text-gray-900 mb-4">Order Confirmed!</h1>
+            <h1 className="text-4xl font-bold text-gray-900 mb-4">
+              {isPaid ? 'Order Confirmed!' : verifying ? 'Confirming Your Payment…' : 'Order Received'}
+            </h1>
             <p className="text-xl text-gray-600 mb-8">
-              Thank you for your purchase. We're processing your order now.
+              {isPaid
+                ? "Thank you for your purchase. We're processing your order now."
+                : verifying
+                  ? 'Please wait while we confirm your payment — this can take a few moments.'
+                  : "Your order has been placed, but we haven't confirmed your payment yet. If you've already paid, it may take a moment to reflect."}
             </p>
+
+            {!isPaid && !verifying && (
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-8 text-left flex items-start gap-3">
+                <i className="ri-error-warning-line text-amber-500 text-xl mt-0.5"></i>
+                <div className="flex-1">
+                  <p className="font-semibold text-gray-900">Payment not confirmed yet</p>
+                  <p className="text-sm text-gray-600 mb-3">If you haven't completed payment, you can finish it now.</p>
+                  <Link
+                    href={`/pay/${order.id}`}
+                    className="inline-flex items-center bg-amber-500 hover:bg-amber-600 text-white px-5 py-2.5 rounded-lg font-semibold text-sm transition-colors"
+                  >
+                    <i className="ri-bank-card-line mr-2"></i>
+                    Complete Payment
+                  </Link>
+                </div>
+              </div>
+            )}
 
             <div className="bg-gray-50 rounded-xl p-6 mb-8">
               <div className="grid md:grid-cols-3 gap-6 text-center">
@@ -241,7 +265,7 @@ function OrderSuccessContent() {
                 </div>
 
                 <div className="flex justify-between text-xl font-bold text-gray-900 border-t border-gray-200 pt-2">
-                  <span>Total Paid</span>
+                  <span>{isPaid ? 'Total Paid' : 'Total Due'}</span>
                   <span>GH₵{order.total.toFixed(2)}</span>
                 </div>
               </div>

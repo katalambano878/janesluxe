@@ -1,10 +1,8 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { supabaseAdmin } from '@/lib/supabase-admin';
 
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export async function GET(
   _request: Request,
@@ -13,29 +11,29 @@ export async function GET(
   const { orderId } = await params;
 
   try {
-    // Fetch order (by UUID or order_number)
-    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(orderId);
-    const { data: order, error: orderError } = await supabaseAdmin
+    // Prefer the correct column — avoids uuid cast errors on order numbers.
+    const isUUID = UUID_RE.test(orderId);
+    let query = supabaseAdmin
       .from('orders')
-      .select('*, order_items(id, product_id, product_name, variant_name, quantity, unit_price, metadata)')
-      .or(isUUID ? `id.eq.${orderId}` : `order_number.eq.${orderId}`)
-      .single();
+      .select(
+        '*, order_items(id, product_id, product_name, variant_name, quantity, unit_price, metadata)'
+      );
+    query = isUUID ? query.eq('id', orderId) : query.eq('order_number', orderId);
+    const { data: order, error: orderError } = await query.single();
 
     if (orderError || !order) {
       return NextResponse.json({ error: 'Order not found' }, { status: 404 });
     }
 
-    // Validate stock for every item in the order
     const outOfStockItems: string[] = [];
 
     if (order.order_items?.length) {
       for (const item of order.order_items) {
         if (!item.product_id) continue;
 
-        // Fetch current product stock
         const { data: product } = await supabaseAdmin
           .from('products')
-          .select('stock, status, name')
+          .select('quantity, status, name')
           .eq('id', item.product_id)
           .single();
 
@@ -44,29 +42,32 @@ export async function GET(
           continue;
         }
 
-        // Product is inactive / deleted
         if (product.status && product.status !== 'active') {
           outOfStockItems.push(item.product_name);
           continue;
         }
 
-        // Check variant stock if variant metadata is available
         const variantId = item.metadata?.variant_id;
         if (variantId) {
           const { data: variant } = await supabaseAdmin
             .from('product_variants')
-            .select('stock')
+            .select('quantity')
             .eq('id', variantId)
             .single();
 
-          if (variant && typeof variant.stock === 'number' && variant.stock < item.quantity) {
-            outOfStockItems.push(`${item.product_name}${item.variant_name ? ` (${item.variant_name})` : ''}`);
+          if (
+            variant &&
+            typeof variant.quantity === 'number' &&
+            variant.quantity < item.quantity
+          ) {
+            outOfStockItems.push(
+              `${item.product_name}${item.variant_name ? ` (${item.variant_name})` : ''}`
+            );
             continue;
           }
         }
 
-        // Check overall product stock
-        if (typeof product.stock === 'number' && product.stock < item.quantity) {
+        if (typeof product.quantity === 'number' && product.quantity < item.quantity) {
           outOfStockItems.push(item.product_name);
         }
       }

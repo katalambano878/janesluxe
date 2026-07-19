@@ -72,11 +72,11 @@ Refunds are processed after item inspection.`,
     title: "Payment Methods",
     path: "/checkout",
     category: "payment",
-    content: `Secure payments are processed by Paystack. Customers can pay with debit/credit cards (Visa, Mastercard), bank transfer, USSD, mobile money (MTN, Telecel, AirtelTigo), or QR code at checkout.
+    content: `Secure payments are processed by Moolre. Customers can pay with mobile money (MTN, Telecel, AirtelTigo) or debit/credit cards (Visa, Mastercard) at checkout.
 
 Cash on Delivery is available for eligible orders within Accra.
 All prices are shown in GH₵ (GHS) unless otherwise stated.`,
-    keywords: ["payment", "paystack", "card", "bank transfer", "ussd", "momo", "mobile money", "checkout", "secure", "ghs", "Ghana Cedis", "ghana"],
+    keywords: ["payment", "moolre", "card", "momo", "mobile money", "checkout", "secure", "ghs", "Ghana Cedis", "ghana"],
   },
   {
     id: "order-tracking-guide",

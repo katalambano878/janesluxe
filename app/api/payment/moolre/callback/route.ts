@@ -25,7 +25,8 @@ export async function POST(req: Request) {
 
         // Gate with the shared callback secret.
         const expectedSecret = process.env.MOOLRE_CALLBACK_SECRET;
-        if (expectedSecret) {
+        const secretConfigured = !!expectedSecret;
+        if (secretConfigured) {
             const providedKey = new URL(req.url).searchParams.get('key');
             if (providedKey !== expectedSecret) {
                 console.error('[Moolre Callback] Invalid callback secret');
@@ -52,11 +53,16 @@ export async function POST(req: Request) {
 
         // Try to independently confirm with Moolre's status API. When the
         // private key isn't configured (authError), fall back to trusting the
-        // webhook body itself — this endpoint is already gated by the shared
-        // secret in the `?key=` query string.
+        // webhook body itself — but ONLY when this endpoint is protected by the
+        // shared `?key=` secret. Without the secret, an attacker could POST a
+        // fake "paid" webhook, so we require a real status-API confirmation.
         const status = await moolreCheckStatus(externalref);
         const webhookSaysPaid = Number(body?.status) === 1;
-        const confirmed = status.paid || (status.authError && webhookSaysPaid);
+        const confirmed = status.paid || (secretConfigured && status.authError && webhookSaysPaid);
+
+        if (!secretConfigured) {
+            console.warn('[Moolre Callback] MOOLRE_CALLBACK_SECRET is not set — webhook is ungated; only trusting status-API confirmations.');
+        }
 
         if (!confirmed) {
             console.log('[Moolre Callback] Payment not confirmed for', merchantOrderRef,

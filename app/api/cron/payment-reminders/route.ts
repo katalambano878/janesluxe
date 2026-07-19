@@ -1,23 +1,26 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
 import { sendPaymentLink } from '@/lib/notifications';
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+import { supabaseAdmin } from '@/lib/supabase-admin';
 
 // This endpoint is called by a cron job to send payment reminders
 // for orders that haven't been paid within 15 minutes
 export async function GET(request: Request) {
   try {
-    // Verify cron secret to prevent unauthorized access
+    // Verify cron secret to prevent unauthorized access. Fail closed: if the
+    // secret isn't configured we reject rather than leaving the endpoint open
+    // (it can send SMS/email at cost and expose order data).
     const authHeader = request.headers.get('authorization');
     const cronSecret = process.env.CRON_SECRET;
-    
-    if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+
+    if (!cronSecret) {
+      console.error('[Payment Reminders] CRON_SECRET is not configured; refusing to run.');
+      return NextResponse.json({ error: 'Cron not configured' }, { status: 503 });
+    }
+    if (authHeader !== `Bearer ${cronSecret}`) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    const supabase = supabaseAdmin;
 
     // Find orders that:
     // 1. Are not paid
@@ -29,6 +32,9 @@ export async function GET(request: Request) {
       .from('orders')
       .select('id, order_number, email, phone, total, shipping_address, metadata')
       .neq('payment_status', 'paid')
+      // Only nag orders that are meant to be paid online; cash-on-delivery
+      // orders are settled in person and shouldn't get payment links.
+      .not('payment_method', 'in', '("cod","cash")')
       .eq('payment_reminder_sent', false)
       .lt('created_at', fifteenMinutesAgo)
       .order('created_at', { ascending: true })
