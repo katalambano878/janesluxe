@@ -450,19 +450,21 @@ class QueryBuilder implements PromiseLike<{ data: any; error: any; count: number
     const col = seg.slice(0, first).trim();
     const rest = seg.slice(first + 1).trim();
 
-    // in.(a,b,c) list membership
-    if (rest.startsWith("in.(") && rest.endsWith(")")) {
-      const vals = rest
-        .slice(4, -1)
+    // in.(a,b,c) / not.in.(a,b,c) list membership
+    const inList = /^(not\.)?in\.\(([\s\S]*)\)$/.exec(rest);
+    if (inList) {
+      const negate = Boolean(inList[1]);
+      const vals = inList[2]
         .split(",")
         .map((v) => v.trim())
         .filter((v) => v.length > 0);
-      if (!vals.length) return "FALSE";
+      if (!vals.length) return negate ? "TRUE" : "FALSE";
       const placeholders = vals.map((v) => {
         params.push(v);
         return `$${params.length}`;
       });
-      return `${ident(col)} IN (${placeholders.join(", ")})`;
+      const clause = `${ident(col)} IN (${placeholders.join(", ")})`;
+      return negate ? `NOT (${clause})` : clause;
     }
 
     const second = rest.indexOf(".");
@@ -470,6 +472,18 @@ class QueryBuilder implements PromiseLike<{ data: any; error: any; count: number
     const val = rest.slice(second + 1).trim();
     if (op === "is") {
       return this.isClause(col, val);
+    }
+    // PostgREST: col.not.eq.val / col.not.ilike.%x%
+    if (op === "not") {
+      const third = val.indexOf(".");
+      if (third > 0) {
+        const innerOp = val.slice(0, third).trim();
+        const innerVal = val.slice(third + 1).trim();
+        if (innerOp === "is") {
+          return `NOT (${this.isClause(col, innerVal)})`;
+        }
+        return this.cmpClause(col, `not_${innerOp}`, innerVal, params);
+      }
     }
     const sqlOp: Record<string, string> = {
       eq: "=", neq: "<>", gt: ">", gte: ">=", lt: "<", lte: "<=", like: "LIKE", ilike: "ILIKE",
