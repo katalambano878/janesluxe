@@ -25,7 +25,7 @@ export default async function CategoriesPage() {
     'from-brand-supporting/30 to-transparent',
   ];
 
-  const categories = categoriesData?.map((c, i) => ({
+  const categories = categoriesData?.map((c: any, i: number) => ({
     ...c,
     image: c.image_url || 'https://via.placeholder.com/600x400?text=Category',
     hoverOverlay: hoverOverlays[i % hoverOverlays.length],
