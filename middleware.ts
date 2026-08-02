@@ -107,22 +107,33 @@ let cachedMaintenance: { value: boolean; at: number } | null = null;
 const MAINTENANCE_CACHE_TTL_MS = 15_000;
 
 async function isMaintenanceModeEnabled(): Promise<boolean> {
-  if (!supabaseUrl || !supabaseAnonKey) {
-    return false;
-  }
+  // Env override always wins (works without hosted Supabase).
+  if (process.env.MAINTENANCE_MODE === 'true') return true;
+  if (process.env.MAINTENANCE_MODE === 'false') return false;
+
   const now = Date.now();
   if (cachedMaintenance && now - cachedMaintenance.at < MAINTENANCE_CACHE_TTL_MS) {
     return cachedMaintenance.value;
   }
+
   try {
-    const url = `${supabaseUrl}/rest/v1/store_settings?key=eq.maintenance_mode&select=value&limit=1`;
+    // Prefer the app's own REST shim (plain Postgres) over hosted Supabase.
+    const origin =
+      process.env.NEXT_PUBLIC_APP_URL?.replace(/\/+$/, '') ||
+      (supabaseUrl && !supabaseUrl.includes('supabase.co') ? supabaseUrl.replace(/\/+$/, '') : '');
+    if (!origin && (!supabaseUrl || !supabaseAnonKey)) {
+      return false;
+    }
+    const base = origin || supabaseUrl!.replace(/\/+$/, '');
+    const url = `${base}/rest/v1/store_settings?key=eq.maintenance_mode&select=value&limit=1`;
     const res = await fetch(url, {
       headers: {
-        apikey: supabaseAnonKey,
-        Authorization: `Bearer ${supabaseAnonKey}`,
+        apikey: supabaseAnonKey || 'anon',
+        Authorization: `Bearer ${supabaseAnonKey || 'anon'}`,
       },
       cache: 'no-store',
     });
+    if (!res.ok) return false;
     const data: Array<{ value: unknown }> = await res.json();
     const raw = data?.[0]?.value;
     const enabled =

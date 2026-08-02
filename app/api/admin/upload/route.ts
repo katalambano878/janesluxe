@@ -1,18 +1,6 @@
 import { NextResponse } from 'next/server';
-import { supabaseAdmin, isSupabaseAdminConfigured } from '@/lib/supabase-admin';
-import { verifyAuth } from '@/lib/auth';
-import { isPlainPostgres } from '@/lib/db/mode';
-
-async function requireAdmin(request: Request): Promise<NextResponse | null> {
-  if (!isSupabaseAdminConfigured && !isPlainPostgres()) {
-    return NextResponse.json({ error: 'Server misconfiguration' }, { status: 503 });
-  }
-  const auth = await verifyAuth(request, { requireAdmin: true });
-  if (!auth.authenticated) {
-    return NextResponse.json({ error: auth.error || 'Not authenticated' }, { status: 401 });
-  }
-  return null;
-}
+import { requireAdmin } from '@/lib/auth';
+import { supabaseAdmin } from '@/lib/supabase-admin';
 
 /**
  * POST /api/admin/upload
@@ -20,8 +8,8 @@ async function requireAdmin(request: Request): Promise<NextResponse | null> {
  * Returns { url: string } public URL.
  */
 export async function POST(request: Request) {
-  const err = await requireAdmin(request);
-  if (err) return err;
+  const gate = await requireAdmin(request);
+  if ('response' in gate) return gate.response;
 
   try {
     const formData = await request.formData();

@@ -9,7 +9,7 @@ export const SITE_TAGLINE =
   "Elegant Footwear & Fashion For Modern Women";
 
 export const SITE_URL = (
-  process.env.NEXT_PUBLIC_APP_URL ?? "https://yourdomain.com"
+  process.env.NEXT_PUBLIC_APP_URL?.trim() || "https://janesluxe.com"
 ).replace(/\/+$/, "");
 
 export const CONTACT_EMAIL =

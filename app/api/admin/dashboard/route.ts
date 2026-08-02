@@ -1,34 +1,8 @@
 import { NextResponse } from 'next/server';
+import { requireAdmin } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase-admin';
 
 export const dynamic = 'force-dynamic';
-
-function getAccessToken(request: Request): string | null {
-  const authHeader = request.headers.get('authorization');
-  if (authHeader?.startsWith('Bearer ')) return authHeader.slice(7).trim();
-  const cookieHeader = request.headers.get('cookie') || '';
-  const match = cookieHeader.match(/\bsb-[a-z0-9]+-access-token=([^;]+)/i)
-    || cookieHeader.match(/\bsb-access-token=([^;]+)/);
-  if (match) return decodeURIComponent(match[1].trim());
-  return null;
-}
-
-async function requireAdmin(request: Request): Promise<NextResponse | null> {
-  if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
-    return NextResponse.json({ error: 'Server misconfiguration' }, { status: 503 });
-  }
-  const token = getAccessToken(request);
-  if (!token) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
-  const { data: { user }, error: userError } = await supabaseAdmin.auth.getUser(token);
-  if (userError || !user) return NextResponse.json({ error: 'Invalid session' }, { status: 401 });
-  const { data: profile } = await supabaseAdmin
-    .from('profiles').select('role').eq('id', user.id).single();
-  const role = profile?.role != null ? String(profile.role) : '';
-  if (role !== 'admin' && role !== 'staff') {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-  }
-  return null;
-}
 
 /**
  * GET /api/admin/dashboard?branch=<id>
@@ -36,8 +10,8 @@ async function requireAdmin(request: Request): Promise<NextResponse | null> {
  * Uses the service role so it works regardless of client-side Supabase config/RLS.
  */
 export async function GET(request: Request) {
-  const err = await requireAdmin(request);
-  if (err) return err;
+  const gate = await requireAdmin(request);
+  if ('response' in gate) return gate.response;
 
   try {
     const { searchParams } = new URL(request.url);

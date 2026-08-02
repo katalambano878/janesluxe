@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { supabaseAdmin } from '@/lib/supabase-admin';
+import { supabaseAdmin, isSupabaseAdminConfigured } from '@/lib/supabase-admin';
 import { buildProductMetadata } from '@/lib/seo';
 import ProductDetailClient from './ProductDetailClient';
 
@@ -8,7 +8,7 @@ type Props = { params: Promise<{ slug: string }> };
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
 
-  if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+  if (!isSupabaseAdminConfigured) {
     return buildProductMetadata({
       name: 'Product',
       slug,

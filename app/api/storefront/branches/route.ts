@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabase-admin';
+import { supabaseAdmin, isSupabaseAdminConfigured } from '@/lib/supabase-admin';
 
 export const dynamic = 'force-dynamic';
 
@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic';
  * Returns active branches for the storefront branch selector.
  */
 export async function GET() {
-  if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+  if (!isSupabaseAdminConfigured) {
     return NextResponse.json({ error: 'Server misconfiguration' }, { status: 503 });
   }
 

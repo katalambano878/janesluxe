@@ -1,12 +1,12 @@
 import { NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabase-admin';
+import { supabaseAdmin, isSupabaseAdminConfigured } from '@/lib/supabase-admin';
 
 // No in-memory cache — newly created categories must appear instantly on the
 // storefront. CDN/browser caching is still controlled via Cache-Control below.
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
-    if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    if (!isSupabaseAdminConfigured) {
         return NextResponse.json({ error: 'Server misconfiguration' }, { status: 503 });
     }
 

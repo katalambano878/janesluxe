@@ -1,4 +1,5 @@
-import { supabaseAdmin } from './supabase-admin';
+import { NextResponse } from 'next/server';
+import { supabaseAdmin, isSupabaseAdminConfigured } from './supabase-admin';
 
 /**
  * Shared server-side authentication utilities.
@@ -13,11 +14,9 @@ export interface AuthResult {
 }
 
 /**
- * Extract the Supabase access token from either the Authorization header
- * (Bearer) or the cookies set by the admin login route
- * (`sb-<projectRef>-access-token`). The admin panel uses a cookie session, not
- * the browser Supabase client's localStorage session, so header-only lookups
- * fail for admin actions.
+ * Extract the access token from either the Authorization header (Bearer) or
+ * cookies set by the admin login route (`sb-<projectRef>-access-token`).
+ * Project refs may contain hyphens (e.g. janesluxe-staging).
  */
 function extractAccessToken(request: Request): string | null {
     const authHeader = request.headers.get('authorization');
@@ -27,15 +26,16 @@ function extractAccessToken(request: Request): string | null {
     }
 
     const cookieHeader = request.headers.get('cookie') || '';
-    const scopedMatch = cookieHeader.match(/\bsb-[a-z0-9]+-access-token=([^;]+)/i);
-    if (scopedMatch) return decodeURIComponent(scopedMatch[1].trim());
+    // Prefer exact *-access-token cookies; allow hyphens in the project ref.
+    const scopedMatch = cookieHeader.match(/\bsb-([^=]+)-access-token=([^;]+)/i);
+    if (scopedMatch) return decodeURIComponent(scopedMatch[2].trim());
     const plainMatch = cookieHeader.match(/\bsb-access-token=([^;]+)/);
     if (plainMatch) return decodeURIComponent(plainMatch[1].trim());
 
     const authCookie = cookieHeader
         .split(';')
         .map((c) => c.trim())
-        .find((c) => c.startsWith('sb-') && (c.includes('-auth-token') || c.includes('auth')));
+        .find((c) => c.startsWith('sb-') && (c.includes('-auth-token') || c.endsWith('-access-token') || c.includes('auth-token')));
     if (authCookie) {
         const value = authCookie.split('=').slice(1).join('=').trim();
         const decoded = decodeURIComponent(value);
@@ -50,6 +50,42 @@ function extractAccessToken(request: Request): string | null {
     }
 
     return null;
+}
+
+/** True when plain Postgres or hosted Supabase service role is available. */
+export function isAdminBackendConfigured(): boolean {
+    return isSupabaseAdminConfigured;
+}
+
+/**
+ * Shared admin/staff gate for API routes. Prefer this over copy-pasted
+ * requireAdmin helpers that incorrectly require SUPABASE_SERVICE_ROLE_KEY
+ * even when DATABASE_URL (plain Postgres) is configured.
+ */
+export async function requireAdmin(
+    request: Request
+): Promise<{ auth: AuthResult } | { response: NextResponse }> {
+    if (!isSupabaseAdminConfigured) {
+        return {
+            response: NextResponse.json({ error: 'Server misconfiguration' }, { status: 503 }),
+        };
+    }
+    const auth = await verifyAuth(request, { requireAdmin: true });
+    if (!auth.authenticated) {
+        const status = auth.error === 'Admin access required' ? 403 : 401;
+        return {
+            response: NextResponse.json(
+                { error: auth.error || 'Not authenticated' },
+                { status }
+            ),
+        };
+    }
+    return { auth };
+}
+
+export function isStaffRole(role?: string | null): boolean {
+    const r = role != null ? String(role) : '';
+    return r === 'admin' || r === 'staff';
 }
 
 /**

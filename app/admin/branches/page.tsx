@@ -287,24 +287,35 @@ export default function BranchesPage() {
                           <p className="text-xs text-gray-400 mt-0.5">Slug: {b.slug}</p>
                         </div>
                       </div>
-                      <div className="flex items-center space-x-2">
+                      <div className="flex items-center space-x-4">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                            {b.is_active ? 'Open' : 'Closed'}
+                          </span>
+                          <button
+                            type="button"
+                            role="switch"
+                            aria-checked={b.is_active}
+                            aria-label={`${b.is_active ? 'Turn off' : 'Turn on'} ${b.name}`}
+                            onClick={() => toggleActive(b)}
+                            disabled={savingId === b.id}
+                            className={`relative w-12 h-7 rounded-full transition-colors flex-shrink-0 disabled:opacity-50 cursor-pointer ${
+                              b.is_active ? 'bg-green-500' : 'bg-gray-300'
+                            }`}
+                          >
+                            <span
+                              className={`absolute top-0.5 left-0.5 w-6 h-6 bg-white rounded-full shadow transition-transform ${
+                                b.is_active ? 'translate-x-5' : 'translate-x-0'
+                              }`}
+                            />
+                          </button>
+                        </div>
                         <button
                           onClick={() => startEditing(b)}
                           className="px-4 py-2 border-2 border-gray-300 hover:border-gray-400 text-gray-700 rounded-lg font-medium text-sm transition-colors cursor-pointer"
                         >
                           <i className="ri-edit-line mr-1"></i>
                           Edit
-                        </button>
-                        <button
-                          onClick={() => toggleActive(b)}
-                          disabled={savingId === b.id}
-                          className={`px-4 py-2 rounded-lg font-medium text-sm transition-colors cursor-pointer disabled:opacity-60 ${
-                            b.is_active
-                              ? 'border-2 border-red-200 text-red-600 hover:bg-red-50'
-                              : 'border-2 border-green-200 text-green-700 hover:bg-green-50'
-                          }`}
-                        >
-                          {b.is_active ? 'Deactivate' : 'Activate'}
                         </button>
                       </div>
                     </div>

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabase-admin';
+import { supabaseAdmin, isSupabaseAdminConfigured } from '@/lib/supabase-admin';
 import {
     BRANCH_INVENTORY_SELECT,
     resolveBranchId,
@@ -20,7 +20,7 @@ export async function GET(request: Request) {
     const category = searchParams.get('category');
     const branchParam = searchParams.get('branch');
 
-    if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    if (!isSupabaseAdminConfigured) {
         return NextResponse.json({ error: 'Server misconfiguration' }, { status: 503 });
     }
 

@@ -1,5 +1,5 @@
 import { MetadataRoute } from 'next';
-import { supabaseAdmin } from '@/lib/supabase-admin';
+import { supabaseAdmin, isSupabaseAdminConfigured } from '@/lib/supabase-admin';
 import { SEO } from '@/lib/seo';
 
 export const dynamic = 'force-dynamic';
@@ -24,7 +24,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   let productPages: MetadataRoute.Sitemap = [];
   let categoryPages: MetadataRoute.Sitemap = [];
 
-  if (process.env.SUPABASE_SERVICE_ROLE_KEY) {
+  if (isSupabaseAdminConfigured) {
     try {
       const { data: products } = await supabaseAdmin
         .from('products')
@@ -32,7 +32,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         .eq('status', 'active');
 
       if (products) {
-        productPages = products.map((product) => ({
+        productPages = products.map((product: { slug: string; updated_at?: string | null }) => ({
           url: `${baseUrl}/product/${product.slug}`,
           lastModified: product.updated_at ? new Date(product.updated_at) : new Date(),
           changeFrequency: 'weekly' as const,
@@ -46,7 +46,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         .eq('status', 'active');
 
       if (categories) {
-        categoryPages = categories.map((category) => ({
+        categoryPages = categories.map((category: { slug: string; updated_at?: string | null }) => ({
           url: `${baseUrl}/shop?category=${encodeURIComponent(category.slug)}`,
           lastModified: category.updated_at ? new Date(category.updated_at) : new Date(),
           changeFrequency: 'weekly' as const,

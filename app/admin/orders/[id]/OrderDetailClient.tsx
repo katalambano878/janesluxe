@@ -51,16 +51,18 @@ export default function OrderDetailClient({ orderId }: OrderDetailClientProps) {
   const fetchOrderDetails = async () => {
     try {
       setLoading(true);
+      setError(null);
       const res = await fetch(`/api/admin/orders/${encodeURIComponent(orderId)}`, { credentials: 'include' });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || 'Order not found');
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json.error || `Order not found (${res.status})`);
       const data = json.order;
+      if (!data) throw new Error('Order not found');
       setOrder(data);
       setTrackingNumber(data.metadata?.tracking_number || '');
       setAdminNotes(data.notes || '');
     } catch (err: any) {
       console.error('Error fetching order:', err);
-      setError('Failed to load order details');
+      setError(err?.message || 'Failed to load order details');
     } finally {
       setLoading(false);
     }
@@ -140,21 +142,35 @@ export default function OrderDetailClient({ orderId }: OrderDetailClientProps) {
     if (!order) return;
     setReverifying(true);
     setReverifyResult(null);
+    const provider = String(
+      order.metadata?.payment_provider ||
+      order.payment_method ||
+      'moolre'
+    ).toLowerCase();
+    const verifyPath = provider.includes('paystack')
+      ? '/api/payment/paystack/verify'
+      : '/api/payment/moolre/verify';
+    const gatewayLabel = provider.includes('paystack') ? 'Paystack' : 'Moolre';
     try {
-      const res = await fetch('/api/payment/moolre/verify', {
+      const res = await fetch(verifyPath, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ orderNumber: order.order_number }),
+        body: JSON.stringify({
+          orderNumber: order.order_number,
+          reference: order.metadata?.paystack_reference || order.payment_transaction_id,
+        }),
       });
       const json = await res.json();
       if (json.success) {
-        setReverifyResult('✅ Payment verified! Order has been marked as paid.');
+        setReverifyResult(`Payment verified via ${gatewayLabel}. Order has been marked as paid.`);
         fetchOrderDetails();
       } else {
-        setReverifyResult(`⚠️ Moolre could not confirm this payment automatically. Use "Mark as Paid" below to manually confirm it.`);
+        setReverifyResult(
+          `${gatewayLabel} could not confirm this payment automatically. Use "Mark as Paid" below to manually confirm it.`
+        );
       }
     } catch (err) {
-      setReverifyResult('❌ Network error. Please try again.');
+      setReverifyResult('Network error. Please try again.');
     } finally {
       setReverifying(false);
     }
@@ -245,7 +261,25 @@ export default function OrderDetailClient({ orderId }: OrderDetailClientProps) {
   };
 
   if (loading) return <div className="p-8 text-center">Loading...</div>;
-  if (error || !order) return <div className="p-8 text-center text-red-500">{error || 'Order not found'}</div>;
+  if (error || !order) {
+    return (
+      <div className="p-8 text-center space-y-4">
+        <p className="text-red-500 font-medium">{error || 'Order not found'}</p>
+        <button
+          type="button"
+          onClick={() => fetchOrderDetails()}
+          className="px-4 py-2 bg-gray-900 text-white rounded-lg text-sm font-semibold"
+        >
+          Retry
+        </button>
+        <div>
+          <Link href="/admin/orders" className="text-sm text-gray-600 hover:text-gray-900 underline">
+            Back to orders
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   const currentStatus = order.status || 'pending';
   const shippingAddress = order.shipping_address || {};
@@ -591,8 +625,7 @@ export default function OrderDetailClient({ orderId }: OrderDetailClientProps) {
                   )}
                 </button>
               )}
-              {/* Re-verify with Paystack API */}
-              {order.payment_status !== 'paid' && (
+                  {order.payment_status !== 'paid' && (
                 <div className="mt-3">
                   <button
                     onClick={handleReverifyPayment}
@@ -600,9 +633,9 @@ export default function OrderDetailClient({ orderId }: OrderDetailClientProps) {
                     className="w-full bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 py-2.5 rounded-lg font-semibold transition-colors disabled:opacity-50 flex items-center justify-center gap-2 text-sm"
                   >
                     {reverifying ? (
-                      <><i className="ri-loader-4-line animate-spin"></i> Checking with Paystack...</>
+                      <><i className="ri-loader-4-line animate-spin"></i> Checking payment...</>
                     ) : (
-                      <><i className="ri-refresh-line"></i> Re-verify Payment with Paystack</>
+                      <><i className="ri-refresh-line"></i> Re-verify Payment</>
                     )}
                   </button>
                   {reverifyResult && (
