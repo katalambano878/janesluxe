@@ -56,14 +56,28 @@ export function applyBranchVisibilityFilter(query: any, hiddenIds: string[]): an
 
 /**
  * Replaces each product's global `quantity` with its stock at the given branch
- * (no branch row = 0) and strips the embedded branch_inventory rows.
+ * and strips the embedded branch_inventory rows.
+ *
+ * If a branch row is missing (legacy products created before triggers ran),
+ * fall back to the product's global quantity / variant totals so we don't
+ * falsely show "Out of Stock". An explicit row of 0 still means out of stock.
  */
 export function applyBranchQuantity(products: any[], branchId: string): any[] {
   return products.map((p) => {
     const rows: Array<{ branch_id: string; quantity: number }> = Array.isArray(p.branch_inventory)
       ? p.branch_inventory
       : [];
-    const qty = rows.find((r) => r.branch_id === branchId)?.quantity ?? 0;
+    const branchRow = rows.find((r) => r.branch_id === branchId);
+    let qty: number;
+    if (branchRow) {
+      qty = Number(branchRow.quantity) || 0;
+    } else {
+      const variants: Array<{ quantity?: number }> = Array.isArray(p.product_variants)
+        ? p.product_variants
+        : [];
+      const variantSum = variants.reduce((sum, v) => sum + (Number(v.quantity) || 0), 0);
+      qty = Math.max(Number(p.quantity) || 0, variantSum);
+    }
     const { branch_inventory: _ignored, ...rest } = p;
     return { ...rest, quantity: qty };
   });

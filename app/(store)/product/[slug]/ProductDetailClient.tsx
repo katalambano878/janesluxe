@@ -107,6 +107,17 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
           }
         });
 
+        const variantStockSum = rawVariants.reduce(
+          (sum: number, v: any) => sum + (Number(v.quantity) || 0),
+          0
+        );
+        const productQty = Number(dataToTransform.quantity) || 0;
+        // Prefer branch/product quantity when present; otherwise use variant totals
+        // so variant products aren't shown as out of stock before a size is picked.
+        const stockCount = rawVariants.length > 0
+          ? Math.max(productQty, variantStockSum)
+          : productQty;
+
         const transformedProduct = {
           ...dataToTransform,
           media: dataToTransform.product_images?.sort((a: any, b: any) => (a.position ?? 0) - (b.position ?? 0)).map((img: any) => ({
@@ -118,7 +129,7 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
           categorySlug: dataToTransform.categories?.slug || '',
           rating: dataToTransform.rating_avg || 0,
           reviewCount: 0,
-          stockCount: dataToTransform.quantity,
+          stockCount,
           moq: dataToTransform.moq || 1,
           colors: [...new Set(rawVariants.map((v: any) => v.color).filter(Boolean))],
           colorHexMap,

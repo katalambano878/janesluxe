@@ -39,7 +39,11 @@ export default function InventoryManagementPage() {
           const branchRow = selectedBranch
             ? branchRows.find((r: any) => r.branch_id === selectedBranch.id)
             : null;
-          const stock = selectedBranch ? (branchRow?.quantity ?? 0) : (p.quantity || 0);
+          // Missing branch row (legacy) → fall back to global product quantity
+          // so inventory doesn't falsely show everything as out of stock.
+          const stock = selectedBranch
+            ? (branchRow ? Number(branchRow.quantity) || 0 : Number(p.quantity) || 0)
+            : (Number(p.quantity) || 0);
 
           let status = 'good';
           if (stock === 0) status = 'out';
