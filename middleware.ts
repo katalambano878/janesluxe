@@ -132,6 +132,7 @@ async function isMaintenanceModeEnabled(): Promise<boolean> {
         Authorization: `Bearer ${supabaseAnonKey || 'anon'}`,
       },
       cache: 'no-store',
+      signal: AbortSignal.timeout(3000),
     });
     if (!res.ok) return false;
     const data: Array<{ value: unknown }> = await res.json();

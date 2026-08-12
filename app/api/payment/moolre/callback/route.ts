@@ -3,6 +3,7 @@ import { supabaseAdmin } from '@/lib/supabase-admin';
 import { sendOrderConfirmation } from '@/lib/notifications';
 import { checkRateLimit, getClientIdentifier, RATE_LIMITS } from '@/lib/rate-limit';
 import { moolreCheckStatus } from '@/lib/moolre';
+import { markPaymentWebhookProcessed, recordPaymentWebhookEvent } from '@/lib/payment-events';
 
 /**
  * Moolre Payment Webhook Handler
@@ -37,6 +38,7 @@ export async function POST(req: Request) {
         const body = await req.json().catch(() => ({}));
         const data = body?.data || {};
         const externalref: string = data?.externalref || '';
+        const txId = data?.transactionid != null ? String(data.transactionid) : '';
 
         console.log('[Moolre Callback] Received | ref:', externalref, '| status:', body?.status);
 
@@ -49,6 +51,20 @@ export async function POST(req: Request) {
 
         if (!merchantOrderRef) {
             return NextResponse.json({ success: false, message: 'Missing order reference' }, { status: 400 });
+        }
+
+        const eventRec = await recordPaymentWebhookEvent({
+            gateway: 'moolre',
+            externalEventId: txId || `ref:${externalref}`,
+            externalRef: externalref,
+            orderNumber: merchantOrderRef,
+            amount: data?.amount != null ? Number(data.amount) : data?.value != null ? Number(data.value) : null,
+            currency: 'GHS',
+            payload: { status: body?.status, code: body?.code, externalref, transactionid: txId },
+            status: 'received',
+        });
+        if (eventRec.duplicate) {
+            return NextResponse.json({ success: true, message: 'Duplicate callback ignored' });
         }
 
         // Try to independently confirm with Moolre's status API. When the
@@ -91,6 +107,7 @@ export async function POST(req: Request) {
         }
 
         if (existingOrder.payment_status === 'paid') {
+            if (eventRec.id) await markPaymentWebhookProcessed(eventRec.id, 'ignored', 'order already paid');
             return NextResponse.json({ success: true, message: 'Order already processed' });
         }
 
@@ -145,11 +162,11 @@ export async function POST(req: Request) {
             console.error('[Moolre Callback] Customer stats failed:', statsError.message);
         }
 
-        try {
-            await sendOrderConfirmation(orderJson);
-        } catch (notifyError: any) {
-            console.error('[Moolre Callback] Notification failed:', notifyError.message);
-        }
+        void sendOrderConfirmation(orderJson).catch((notifyError: unknown) => {
+            console.error('[Moolre Callback] Notification failed:', notifyError instanceof Error ? notifyError.message : notifyError);
+        });
+
+        if (eventRec.id) await markPaymentWebhookProcessed(eventRec.id, 'processed');
 
         console.log('[Moolre Callback] Order marked paid:', merchantOrderRef);
         return NextResponse.json({ success: true, message: 'Payment verified and order updated' });

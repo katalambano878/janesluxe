@@ -1,13 +1,14 @@
 import { NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase-admin';
+import { query } from '@/lib/db/pool';
 
 export const dynamic = 'force-dynamic';
+export const maxDuration = 30;
 
 /**
  * GET /api/admin/dashboard?branch=<id>
- * Returns the datasets the admin dashboard needs, scoped to a branch when given.
- * Uses the service role so it works regardless of client-side Supabase config/RLS.
+ * Aggregated stats — never returns the full orders table.
  */
 export async function GET(request: Request) {
   const gate = await requireAdmin(request);
@@ -17,24 +18,74 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const branchId = searchParams.get('branch');
 
-    // 1. All orders (for revenue/count/customers/chart)
-    let ordersQuery = supabaseAdmin
-      .from('orders')
-      .select('total, status, payment_status, created_at, email, branch_id');
-    if (branchId) ordersQuery = ordersQuery.eq('branch_id', branchId);
-    const { data: orders, error: ordersError } = await ordersQuery;
-    if (ordersError) throw ordersError;
+    const statsSql = `
+      SELECT
+        COUNT(*)::int AS order_count,
+        COUNT(*) FILTER (
+          WHERE payment_status = 'paid' AND status::text <> 'cancelled'
+        )::int AS paid_count,
+        COALESCE(SUM(total) FILTER (
+          WHERE payment_status = 'paid' AND status::text <> 'cancelled'
+        ), 0)::float AS revenue,
+        COUNT(DISTINCT email)::int AS unique_customers
+      FROM orders
+      WHERE ($1::uuid IS NULL OR branch_id = $1::uuid)
+    `;
 
-    // 2. Recent orders (any payment status, so placed orders are visible)
+    const chartSql = `
+      SELECT
+        (created_at AT TIME ZONE 'UTC')::date AS day,
+        COALESCE(SUM(total), 0)::float AS revenue
+      FROM orders
+      WHERE payment_status = 'paid'
+        AND status::text <> 'cancelled'
+        AND created_at >= (NOW() AT TIME ZONE 'UTC') - INTERVAL '7 days'
+        AND ($1::uuid IS NULL OR branch_id = $1::uuid)
+      GROUP BY 1
+      ORDER BY 1
+    `;
+
+    const [statsRes, chartRes] = await Promise.all([
+      query<{
+        order_count: number;
+        paid_count: number;
+        revenue: number;
+        unique_customers: number;
+      }>(statsSql, [branchId]),
+      query<{ day: string; revenue: number }>(chartSql, [branchId]),
+    ]);
+
+    const stats = statsRes.rows[0] || {
+      order_count: 0,
+      paid_count: 0,
+      revenue: 0,
+      unique_customers: 0,
+    };
+
+    const last7Days = Array.from({ length: 7 }, (_, i) => {
+      const d = new Date();
+      d.setUTCDate(d.getUTCDate() - (6 - i));
+      return d.toISOString().slice(0, 10);
+    });
+    const chartMap = new Map(
+      chartRes.rows.map((r) => [String(r.day).slice(0, 10), Number(r.revenue) || 0])
+    );
+    const chart = last7Days.map((day) => ({
+      date: day,
+      revenue: chartMap.get(day) || 0,
+    }));
+
     let recentQuery = supabaseAdmin
       .from('orders')
-      .select('id, order_number, user_id, email, created_at, total, status, payment_status, shipping_address')
+      .select(
+        'id, order_number, user_id, email, created_at, total, status, payment_status, shipping_address'
+      )
       .order('created_at', { ascending: false })
       .limit(5);
     if (branchId) recentQuery = recentQuery.eq('branch_id', branchId);
-    const { data: recentOrders } = await recentQuery;
+    const { data: recentOrders, error: recentError } = await recentQuery;
+    if (recentError) throw recentError;
 
-    // 3. Low stock (per-branch when a branch is selected)
     let lowStock: { name: string; quantity: number }[] = [];
     if (branchId) {
       const { data } = await supabaseAdmin
@@ -57,7 +108,6 @@ export async function GET(request: Request) {
       lowStock = (data || []).map((p: any) => ({ name: p.name, quantity: p.quantity }));
     }
 
-    // 4. A few products for the dashboard product cards
     const { data: productData } = await supabaseAdmin
       .from('products')
       .select('slug, name, quantity, product_images(url), branch_inventory(branch_id, quantity)')
@@ -75,13 +125,21 @@ export async function GET(request: Request) {
     });
 
     return NextResponse.json({
-      orders: orders || [],
+      stats: {
+        orderCount: stats.order_count,
+        paidCount: stats.paid_count,
+        revenue: Number(stats.revenue) || 0,
+        uniqueCustomers: stats.unique_customers,
+        avgOrderValue:
+          stats.paid_count > 0 ? Number(stats.revenue) / stats.paid_count : 0,
+      },
+      chart,
       recentOrders: recentOrders || [],
       lowStock,
       products,
     });
   } catch (e: any) {
     console.error('Admin dashboard API error:', e);
-    return NextResponse.json({ error: e.message }, { status: 500 });
+    return NextResponse.json({ error: e.message || 'Dashboard failed' }, { status: 500 });
   }
 }

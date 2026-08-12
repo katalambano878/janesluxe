@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useState, useEffect } from 'react';
 import { useAdminBranch } from '@/context/AdminBranchContext';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { fetchWithTimeout, readJsonSafe, TimeoutError } from '@/lib/http';
 
 export default function AdminDashboard() {
   const { selectedBranch, loading: branchLoading } = useAdminBranch();
@@ -17,6 +18,7 @@ export default function AdminDashboard() {
 
   const [dateRange, setDateRange] = useState('7days'); // logic not implemented for this demo, just UI
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   // Real Stats
   const [stats, setStats] = useState([
@@ -66,58 +68,32 @@ export default function AdminDashboard() {
   ];
 
   useEffect(() => {
-    // Wait for branch list/selection to restore before fetching
     if (branchLoading) return;
+
+    const controller = new AbortController();
 
     async function fetchDashboardData() {
       try {
         setLoading(true);
+        setLoadError(null);
         const branchId = selectedBranch?.id || null;
-
-        // Server-side API (service role) — works regardless of client Supabase config
         const branchQuery = branchId ? `?branch=${encodeURIComponent(branchId)}` : '';
-        const res = await fetch(`/api/admin/dashboard${branchQuery}`, { credentials: 'include' });
-        const dash = await res.json();
+        const res = await fetchWithTimeout(`/api/admin/dashboard${branchQuery}`, {
+          credentials: 'include',
+          timeoutMs: 20_000,
+          signal: controller.signal,
+        });
+        const dash = (await readJsonSafe<any>(res)) || {};
         if (!res.ok) throw new Error(dash.error || 'Failed to load dashboard data');
 
-        const allOrdersData: any[] = dash.orders || [];
+        const totalRevenue = Number(dash.stats?.revenue) || 0;
+        const totalOrders = Number(dash.stats?.orderCount) || 0;
+        const uniqueCustomers = Number(dash.stats?.uniqueCustomers) || 0;
+        const avgOrderValue = Number(dash.stats?.avgOrderValue) || 0;
 
-        // Only count PAID orders for revenue & avg order value
-        const paidOrders = allOrdersData?.filter(o => o.payment_status === 'paid') || [];
-        const totalRevenue = paidOrders.reduce((sum, order) => sum + (order.total || 0), 0);
-        const totalOrders = allOrdersData?.length || 0;
-        const paidOrderCount = paidOrders.length;
-        const avgOrderValue = paidOrderCount > 0 ? totalRevenue / paidOrderCount : 0;
-
-        // 2. Fetch Customers Count (approximation using orders unique emails if we don't have user metrics access)
-        // Since we can't query auth.users directly from client, we'll estimate active customers via orders or just keep it 0 if we can't.
-        // Actually, best to just show "Orders" or "Recent Signups" if we had a public profiles table.
-        // We'll use unique emails from orders as a proxy for "Customers"
-        const uniqueCustomers = new Set(allOrdersData?.map(o => o.email)).size;
-
-
-        // Process Chart Data (Last 7 Days) - only count PAID orders as revenue
-        const last7Days = Array.from({ length: 7 }, (_, i) => {
-          const d = new Date();
-          d.setDate(d.getDate() - (6 - i));
-          return d.toISOString().split('T')[0];
-        });
-
-        const chartMap = last7Days.reduce((acc: any, date) => {
-          acc[date] = 0;
-          return acc;
-        }, {});
-
-        paidOrders.forEach(order => {
-          const date = new Date(order.created_at).toISOString().split('T')[0];
-          if (chartMap[date] !== undefined) {
-            chartMap[date] += (order.total || 0);
-          }
-        });
-
-        const processedChartData = Object.keys(chartMap).map(date => ({
-          date: new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-          revenue: chartMap[date]
+        const processedChartData = (dash.chart || []).map((row: any) => ({
+          date: new Date(row.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+          revenue: Number(row.revenue) || 0,
         }));
         setChartData(processedChartData);
 
@@ -125,7 +101,7 @@ export default function AdminDashboard() {
           {
             title: 'Total Revenue',
             value: formatGHS(totalRevenue),
-            change: '+0%', // Dynamic change requires date filtering logic which is complex
+            change: '+0%',
             trend: 'up',
             icon: 'ri-money-dollar-circle-line',
             color: 'gray'
@@ -140,7 +116,7 @@ export default function AdminDashboard() {
           },
           {
             title: 'Customers (Active)',
-            value: uniqueCustomers.toString(), // Proxy
+            value: uniqueCustomers.toString(),
             change: '+0%',
             trend: 'up',
             icon: 'ri-group-line',
@@ -156,54 +132,53 @@ export default function AdminDashboard() {
           }
         ]);
 
-        // 3. Recent Orders (only paid orders, scoped to branch if selected)
         const recentOrdersData = dash.recentOrders || [];
+        setRecentOrders(recentOrdersData.map((o: any) => {
+          const addr = o.shipping_address || {};
+          const customerName = (addr.firstName && addr.lastName)
+            ? `${addr.firstName.trim()} ${addr.lastName.trim()}`
+            : addr.full_name || addr.firstName || o.email?.split('@')[0] || 'Customer';
+          return {
+            id: o.id,
+            displayId: o.order_number,
+            customer: customerName,
+            email: o.email,
+            date: new Date(o.created_at).toLocaleDateString(),
+            total: o.total,
+            status: o.status,
+            items: 1
+          };
+        }));
 
-        if (recentOrdersData) {
-          const formattedRecent = recentOrdersData.map((o: any) => {
-            const addr = o.shipping_address || {};
-            const customerName = (addr.firstName && addr.lastName)
-              ? `${addr.firstName.trim()} ${addr.lastName.trim()}`
-              : addr.full_name || addr.firstName || o.email.split('@')[0];
-            return {
-              id: o.id,
-              displayId: o.order_number,
-              customer: customerName,
-              email: o.email,
-              date: new Date(o.created_at).toLocaleDateString(),
-              total: o.total,
-              status: o.status,
-              items: 1
-            };
-          });
-          setRecentOrders(formattedRecent);
-        }
-
-        // 4. Low Stock Products (per-branch stock when a branch is selected)
         setLowStockProducts((dash.lowStock || []).map((p: any) => ({
           name: p.name,
           stock: p.quantity,
           status: p.quantity === 0 ? 'critical' : 'low'
         })));
 
-        // 5. Products preview cards
         setTopProducts((dash.products || []).map((p: any) => ({
-          id: p.slug, // Use slug for link
+          id: p.slug,
           name: p.name,
           image: p.image || 'https://via.placeholder.com/200',
-          sales: 0, // Mocked for now
-          revenue: 0, // Mocked for now
+          sales: 0,
+          revenue: 0,
           stock: p.quantity
         })));
-
-      } catch (error) {
+      } catch (error: any) {
+        if (error?.name === 'AbortError') return;
         console.error('Error loading dashboard:', error);
+        setLoadError(
+          error instanceof TimeoutError
+            ? 'Dashboard timed out. The database may be slow — try again.'
+            : (error?.message || 'Failed to load dashboard')
+        );
       } finally {
         setLoading(false);
       }
     }
 
     fetchDashboardData();
+    return () => controller.abort();
   }, [branchLoading, selectedBranch?.id]);
 
   const statusColors: any = {
@@ -241,6 +216,18 @@ export default function AdminDashboard() {
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {loadError && (
+          <div className="mb-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-red-800 flex items-center justify-between gap-4">
+            <p className="text-sm">{loadError}</p>
+            <button
+              type="button"
+              onClick={() => window.location.reload()}
+              className="shrink-0 rounded-lg bg-red-700 px-3 py-1.5 text-sm font-semibold text-white hover:bg-red-800"
+            >
+              Retry
+            </button>
+          </div>
+        )}
         <div className="flex items-center justify-between mb-8">
           <div>
             <h1 className="text-3xl font-bold text-gray-900">

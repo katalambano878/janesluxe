@@ -2,9 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { supabase } from '@/lib/supabase';
+import { fetchWithTimeout, readJsonSafe, TimeoutError } from '@/lib/http';
 
-// Helper for currency formatting
 const formatCurrency = (amount: number) => {
   return new Intl.NumberFormat('en-GH', {
     style: 'currency',
@@ -12,13 +11,103 @@ const formatCurrency = (amount: number) => {
   }).format(amount);
 };
 
+interface ApiCustomer {
+  id: string;
+  email?: string | null;
+  phone?: string | null;
+  full_name?: string | null;
+  first_name?: string | null;
+  last_name?: string | null;
+  total_spent?: number | null;
+  total_orders?: number | null;
+  last_order_at?: string | null;
+  created_at?: string | null;
+}
+
+interface InsightCustomer {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+  segment: string;
+  totalSpent: number;
+  orders: number;
+  avgOrderValue: number;
+  lifetimeValue: number;
+  joinDate: string;
+  lastOrder: string;
+  riskLevel: string;
+  engagementScore: number;
+  tags: string[];
+}
+
+function deriveSegment(c: ApiCustomer): string {
+  const totalSpent = Number(c.total_spent) || 0;
+  const orderCount = Number(c.total_orders) || 0;
+  const createdAt = c.created_at || new Date().toISOString();
+  const lastOrderDate = c.last_order_at || createdAt;
+
+  const daysSinceJoin = (Date.now() - new Date(createdAt).getTime()) / (1000 * 3600 * 24);
+  const daysSinceLastOrder = (Date.now() - new Date(lastOrderDate).getTime()) / (1000 * 3600 * 24);
+
+  if (totalSpent > 1000) return 'vip';
+  if (orderCount > 1) return 'returning';
+  if (daysSinceLastOrder > 90 && orderCount > 0) return 'at-risk';
+  if (daysSinceJoin < 30) return 'new';
+  return 'returning';
+}
+
+function deriveRiskLevel(lastOrderDate: string): string {
+  const daysSinceLastOrder = (Date.now() - new Date(lastOrderDate).getTime()) / (1000 * 3600 * 24);
+  if (daysSinceLastOrder > 120) return 'high';
+  if (daysSinceLastOrder > 60) return 'medium';
+  return 'low';
+}
+
+function mapCustomer(c: ApiCustomer): InsightCustomer {
+  const totalSpent = Number(c.total_spent) || 0;
+  const orderCount = Number(c.total_orders) || 0;
+  const joinDate = c.created_at || new Date().toISOString();
+  const lastOrder = c.last_order_at || joinDate;
+  const segment = deriveSegment(c);
+  const riskLevel = deriveRiskLevel(lastOrder);
+
+  let engagementScore = 50;
+  if (segment === 'vip') engagementScore += 40;
+  if (riskLevel === 'high') engagementScore -= 30;
+  const daysSinceLastOrder = (Date.now() - new Date(lastOrder).getTime()) / (1000 * 3600 * 24);
+  if (daysSinceLastOrder < 30) engagementScore += 20;
+
+  const name =
+    c.full_name ||
+    [c.first_name, c.last_name].filter(Boolean).join(' ') ||
+    'Unknown User';
+
+  return {
+    id: c.id,
+    name,
+    email: c.email || '-',
+    phone: c.phone || '-',
+    segment,
+    totalSpent,
+    orders: orderCount,
+    avgOrderValue: orderCount > 0 ? totalSpent / orderCount : 0,
+    lifetimeValue: totalSpent,
+    joinDate,
+    lastOrder,
+    riskLevel,
+    engagementScore: Math.min(100, Math.max(0, engagementScore)),
+    tags: [],
+  };
+}
+
 export default function CustomerInsightsPage() {
   const [selectedSegment, setSelectedSegment] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
-  const [customers, setCustomers] = useState<any[]>([]);
+  const [customers, setCustomers] = useState<InsightCustomer[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
-  // Statistics
   const [stats, setStats] = useState({
     vip: 0,
     returning: 0,
@@ -32,76 +121,22 @@ export default function CustomerInsightsPage() {
   }, []);
 
   const fetchCustomerData = async () => {
+    setLoading(true);
+    setLoadError(null);
     try {
-      setLoading(true);
-
-      // 1. Fetch Profiles
-      const { data: profiles, error: profileError } = await supabase
-        .from('profiles')
-        .select('*');
-
-      if (profileError) throw profileError;
-
-      // 2. Fetch Orders for calculations
-      const { data: orders, error: orderError } = await supabase
-        .from('orders')
-        .select('user_id, total, created_at, status');
-
-      if (orderError) throw orderError;
-
-      // 3. Aggregate Data
-      const aggregated = profiles.map((profile: any) => {
-        const userOrders = orders?.filter(o => o.user_id === profile.id) || [];
-        const totalSpent = userOrders.reduce((sum, o) => sum + (o.total || 0), 0);
-        const orderCount = userOrders.length;
-
-        // Sort orders to find last order
-        const sortedOrders = [...userOrders].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-        const lastOrderDate = sortedOrders[0]?.created_at || profile.created_at;
-
-        // Calculate Segment
-        let segment = 'new';
-        const daysSinceJoin = (new Date().getTime() - new Date(profile.created_at).getTime()) / (1000 * 3600 * 24);
-        const daysSinceLastOrder = (new Date().getTime() - new Date(lastOrderDate).getTime()) / (1000 * 3600 * 24);
-
-        if (totalSpent > 1000) segment = 'vip'; // VIP Threshold
-        else if (orderCount > 1) segment = 'returning';
-        else if (daysSinceLastOrder > 90 && orderCount > 0) segment = 'at-risk';
-        else if (daysSinceJoin < 30) segment = 'new';
-        else segment = 'returning'; // Default bucket
-
-        // Risk Level
-        let riskLevel = 'low';
-        if (daysSinceLastOrder > 60) riskLevel = 'medium';
-        if (daysSinceLastOrder > 120) riskLevel = 'high';
-
-        // Engagement Score (mock logic for now based on frequency)
-        let engagementScore = 50;
-        if (segment === 'vip') engagementScore += 40;
-        if (riskLevel === 'high') engagementScore -= 30;
-        if (daysSinceLastOrder < 30) engagementScore += 20;
-
-        return {
-          id: profile.id,
-          name: profile.full_name || 'Unknown User',
-          email: profile.email,
-          phone: profile.phone || '-',
-          segment,
-          totalSpent,
-          orders: orderCount,
-          avgOrderValue: orderCount > 0 ? totalSpent / orderCount : 0,
-          lifetimeValue: totalSpent, // Simple CLV for now
-          joinDate: profile.created_at,
-          lastOrder: lastOrderDate,
-          riskLevel,
-          engagementScore: Math.min(100, Math.max(0, engagementScore)),
-          tags: [] // Could be populated from metadata
-        };
+      const res = await fetchWithTimeout('/api/admin/customers?limit=500', {
+        credentials: 'include',
+        timeoutMs: 15000,
       });
+      if (!res.ok) {
+        const err = await readJsonSafe<{ error?: string }>(res);
+        throw new Error(err?.error || `Failed to load customers (${res.status})`);
+      }
+      const json = await readJsonSafe<{ customers?: ApiCustomer[] }>(res);
+      const aggregated = (json?.customers || []).map(mapCustomer);
 
       setCustomers(aggregated);
 
-      // Calculate Stats
       const totalCLV = aggregated.reduce((sum, c) => sum + c.lifetimeValue, 0);
       setStats({
         vip: aggregated.filter(c => c.segment === 'vip').length,
@@ -110,14 +145,18 @@ export default function CustomerInsightsPage() {
         atRisk: aggregated.filter(c => c.segment === 'at-risk').length,
         avgCLV: aggregated.length > 0 ? totalCLV / aggregated.length : 0
       });
-
     } catch (err) {
+      const message = err instanceof TimeoutError
+        ? 'Request timed out loading customer insights.'
+        : err instanceof Error
+          ? err.message
+          : 'Failed to load customer insights.';
+      setLoadError(message);
       console.error('Error fetching customer insights:', err);
     } finally {
       setLoading(false);
     }
   };
-
 
   const filteredCustomers = customers.filter(customer => {
     const matchesSearch = customer.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -127,7 +166,7 @@ export default function CustomerInsightsPage() {
   });
 
   const getSegmentBadge = (segment: string) => {
-    const badges: any = {
+    const badges: Record<string, string> = {
       vip: 'bg-gray-100 text-gray-900',
       returning: 'bg-blue-100 text-blue-700',
       new: 'bg-amber-100 text-amber-700',
@@ -137,7 +176,7 @@ export default function CustomerInsightsPage() {
   };
 
   const getSegmentLabel = (segment: string) => {
-    const labels: any = {
+    const labels: Record<string, string> = {
       vip: 'VIP Customer',
       returning: 'Returning',
       new: 'New Customer',
@@ -147,7 +186,7 @@ export default function CustomerInsightsPage() {
   };
 
   const getRiskBadge = (risk: string) => {
-    const badges: any = {
+    const badges: Record<string, string> = {
       low: 'bg-gray-100 text-gray-900',
       medium: 'bg-amber-100 text-amber-700',
       high: 'bg-red-100 text-red-700'
@@ -160,6 +199,19 @@ export default function CustomerInsightsPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {loadError && (
+          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <p className="text-red-700 text-sm">{loadError}</p>
+            <button
+              type="button"
+              onClick={fetchCustomerData}
+              className="px-4 py-2 bg-red-700 text-white rounded-lg text-sm font-medium hover:bg-red-800 cursor-pointer shrink-0"
+            >
+              Retry
+            </button>
+          </div>
+        )}
+
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8">
           <div>
             <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Customer Insights</h1>
@@ -300,9 +352,6 @@ export default function CustomerInsightsPage() {
                       </div>
                     </div>
                   </div>
-                  {/* <button className="text-gray-400 hover:text-gray-600 transition-colors">
-                    <i className="ri-more-2-fill text-2xl"></i>
-                    </button> */}
                 </div>
 
                 <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-4">

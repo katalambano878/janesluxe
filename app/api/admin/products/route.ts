@@ -19,6 +19,7 @@ export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const sortBy = searchParams.get('sortBy') || 'newest';
+    const limit = Math.min(Math.max(parseInt(searchParams.get('limit') || '500', 10) || 500, 1), 1000);
 
     let query = supabaseAdmin
       .from('products')
@@ -35,6 +36,8 @@ export async function GET(request: Request) {
     if (sortBy === 'price_desc') query = query.order('price', { ascending: false });
     if (sortBy === 'name') query = query.order('name', { ascending: true });
     if (sortBy === 'stock') query = query.order('quantity', { ascending: true });
+
+    query = query.limit(limit);
 
     const { data, error } = await query;
 

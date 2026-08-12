@@ -1,6 +1,7 @@
 'use client';
 
 import { createContext, useContext, useEffect, useState, useCallback, ReactNode } from 'react';
+import { fetchWithTimeout, readJsonSafe } from '@/lib/http';
 
 export interface AdminBranch {
   id: string;
@@ -30,20 +31,25 @@ export function AdminBranchProvider({ children }: { children: ReactNode }) {
   const [selectedBranch, setSelectedBranch] = useState<AdminBranch | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const refreshBranches = useCallback(async () => {
+  const refreshBranches = useCallback(async (signal?: AbortSignal) => {
     try {
-      // Load via server-side API routes (service role) rather than the browser
-      // Supabase SDK, which is not reliable on all deployments.
       let list: AdminBranch[] = [];
-      const res = await fetch('/api/admin/branches', { credentials: 'include' });
+      const res = await fetchWithTimeout('/api/admin/branches', {
+        credentials: 'include',
+        timeoutMs: 15000,
+        signal,
+      });
       if (res.ok) {
-        const json = await res.json();
-        list = (json.branches || []) as AdminBranch[];
+        const json = await readJsonSafe<{ branches?: AdminBranch[] }>(res);
+        list = (json?.branches || []) as AdminBranch[];
       } else {
-        // Fallback: public endpoint (active branches only)
-        const pubRes = await fetch('/api/storefront/branches', { cache: 'no-store' });
+        const pubRes = await fetchWithTimeout('/api/storefront/branches', {
+          cache: 'no-store',
+          timeoutMs: 15000,
+          signal,
+        });
         if (pubRes.ok) {
-          const pub = await pubRes.json();
+          const pub = await readJsonSafe<unknown[]>(pubRes);
           list = (Array.isArray(pub) ? pub : []).map((b: any, i: number) => ({
             ...b,
             is_active: true,
@@ -53,7 +59,6 @@ export function AdminBranchProvider({ children }: { children: ReactNode }) {
       }
       setBranches(list);
 
-      // Restore saved selection (if branch still exists)
       try {
         const savedId = window.localStorage.getItem(STORAGE_KEY);
         if (savedId) {
@@ -62,14 +67,17 @@ export function AdminBranchProvider({ children }: { children: ReactNode }) {
         }
       } catch { /* ignore */ }
     } catch (err) {
+      if (signal?.aborted) return;
       console.warn('Failed to load branches:', err);
     } finally {
-      setLoading(false);
+      if (!signal?.aborted) setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    refreshBranches();
+    const controller = new AbortController();
+    refreshBranches(controller.signal);
+    return () => controller.abort();
   }, [refreshBranches]);
 
   const selectBranch = useCallback((branch: AdminBranch | null) => {

@@ -1,9 +1,10 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
+import { fetchWithTimeout, readJsonSafe, TimeoutError } from '@/lib/http';
 import BrandLogo from '@/components/BrandLogo';
 import { AdminBranchProvider } from '@/context/AdminBranchContext';
 import AdminBranchSwitcher from '@/components/admin/AdminBranchSwitcher';
@@ -18,133 +19,140 @@ export default function AdminLayout({
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [authError, setAuthError] = useState<string | null>(null);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [user, setUser] = useState<any>(null);
   const [userRole, setUserRole] = useState<string | null>(null);
 
-  // Module Filtering State
   const [enabledModules, setEnabledModules] = useState<string[]>([]);
   const [rolePermissions, setRolePermissions] = useState<Record<string, boolean>>({});
 
-  // Maintenance mode (super admin only)
   const [maintenanceEnabled, setMaintenanceEnabled] = useState(false);
   const [maintenanceToggling, setMaintenanceToggling] = useState(false);
 
-  useEffect(() => {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-    const projectRef = supabaseUrl.split('//')[1]?.split('.')[0] || '';
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+  const projectRef = supabaseUrl.split('//')[1]?.split('.')[0] || '';
 
-    const readProjectCookie = (name: string): string | null => {
-      if (typeof document === 'undefined') return null;
-      const match = document.cookie
-        .split(';')
-        .map((c) => c.trim())
-        .find((c) => c.startsWith(`${name}=`));
-      return match ? decodeURIComponent(match.split('=').slice(1).join('=')) : null;
-    };
+  const readProjectCookie = useCallback((name: string): string | null => {
+    if (typeof document === 'undefined') return null;
+    const match = document.cookie
+      .split(';')
+      .map((c) => c.trim())
+      .find((c) => c.startsWith(`${name}=`));
+    return match ? decodeURIComponent(match.split('=').slice(1).join('=')) : null;
+  }, []);
 
-    async function checkAuth() {
+  const getAccessToken = useCallback((): string | null => {
+    let accessToken: string | null = projectRef
+      ? readProjectCookie(`sb-${projectRef}-access-token`)
+      : null;
+
+    if (!accessToken) {
       try {
-        if (pathname === '/admin/login') {
-          setIsLoading(false);
-          return;
+        const raw = window.localStorage.getItem(`sb-${projectRef}-auth-token`);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          accessToken = parsed?.access_token ?? null;
         }
+      } catch { /* ignore */ }
+    }
+    return accessToken;
+  }, [projectRef, readProjectCookie]);
 
-        // Prefer the project-scoped cookies for the token. Some browsers/extensions
-        // break the supabase-js client fetch, so we do NOT depend on the SDK here.
-        let accessToken: string | null = projectRef
-          ? readProjectCookie(`sb-${projectRef}-access-token`)
-          : null;
-        let refreshToken: string | null = projectRef
-          ? readProjectCookie(`sb-${projectRef}-refresh-token`)
-          : null;
-
-        // Fallback to whatever the SDK might still have cached (no network call).
-        if (!accessToken) {
-          try {
-            const raw = window.localStorage.getItem(`sb-${projectRef}-auth-token`);
-            if (raw) {
-              const parsed = JSON.parse(raw);
-              accessToken = parsed?.access_token ?? null;
-              refreshToken = parsed?.refresh_token ?? null;
-            }
-          } catch { /* ignore */ }
-        }
-
-        if (!accessToken) {
-          router.push('/admin/login');
-          return;
-        }
-
-        const secure = typeof window !== 'undefined' && window.location.protocol === 'https:' ? '; Secure' : '';
-        try {
-          if (projectRef) {
-            document.cookie = `sb-${projectRef}-access-token=${accessToken}; path=/; max-age=${60 * 60 * 24 * 7}; SameSite=Lax${secure}`;
-            if (refreshToken) {
-              document.cookie = `sb-${projectRef}-refresh-token=${refreshToken}; path=/; max-age=${60 * 60 * 24 * 30}; SameSite=Lax${secure}`;
-            }
-          }
-          // Maintenance bypass cookie — read by middleware to let admins through
-          // when the storefront is in maintenance mode.
-          document.cookie = `admin_session=1; path=/; max-age=86400; SameSite=Lax${secure}`;
-        } catch (_) { }
-
-        const meRes = await fetch('/api/admin/me', {
-          credentials: 'include',
-          headers: { Authorization: `Bearer ${accessToken}` },
-        });
-
-        if (!meRes.ok) {
-          let errBody: { error?: string } = {};
-          try {
-            const text = await meRes.text();
-            if (text) errBody = JSON.parse(text);
-          } catch (_) { }
-          if (meRes.status === 503) router.push('/admin/login?error=config');
-          else if (meRes.status === 404) router.push('/admin/login?error=no_profile');
-          else if (meRes.status === 403 && errBody?.error === 'Role disabled') router.push('/admin/login?error=role_disabled');
-          else router.push('/admin/login');
-          return;
-        }
-
-        let profileData: { role?: string } | null = null;
-        let permissions: Record<string, boolean> = {};
-        let meUser: { id?: string; email?: string } | null = null;
-        try {
-          const json = await meRes.json();
-          profileData = json?.profile ?? null;
-          permissions = (json?.permissions && typeof json.permissions === 'object') ? json.permissions : {};
-          meUser = json?.user ?? null;
-        } catch (_) {
-          router.push('/admin/login');
-          return;
-        }
-        const role = profileData?.role != null ? String(profileData.role) : '';
-        if (role !== 'admin') {
-          if (projectRef) {
-            document.cookie = `sb-${projectRef}-access-token=; path=/; max-age=0; SameSite=Lax${secure}`;
-            document.cookie = `sb-${projectRef}-refresh-token=; path=/; max-age=0; SameSite=Lax${secure}`;
-          }
-          document.cookie = `sb-access-token=; path=/; max-age=0; SameSite=Lax${secure}`;
-          document.cookie = `admin_session=; path=/; max-age=0; SameSite=Lax${secure}`;
-          router.push('/admin/login?error=unauthorized');
-          return;
-        }
-
-        setUser(meUser);
-        setUserRole(role);
-        if (Object.keys(permissions).length > 0) setRolePermissions(permissions);
-        setIsAuthenticated(true);
-      } catch {
-        router.push('/admin/login');
-      } finally {
-        setIsLoading(false);
-      }
+  const checkAuth = useCallback(async () => {
+    if (typeof window !== 'undefined' && window.location.pathname === '/admin/login') {
+      setIsLoading(false);
+      return;
     }
 
-    checkAuth();
+    setIsLoading(true);
+    setAuthError(null);
 
-    // Keep cookie in sync when session refreshes
+    try {
+      let accessToken = getAccessToken();
+
+      if (!accessToken) {
+        router.push('/admin/login');
+        return;
+      }
+
+      const secure = typeof window !== 'undefined' && window.location.protocol === 'https:' ? '; Secure' : '';
+      try {
+        if (projectRef) {
+          document.cookie = `sb-${projectRef}-access-token=${accessToken}; path=/; max-age=${60 * 60 * 24 * 7}; SameSite=Lax${secure}`;
+          const refreshToken = projectRef ? readProjectCookie(`sb-${projectRef}-refresh-token`) : null;
+          if (refreshToken) {
+            document.cookie = `sb-${projectRef}-refresh-token=${refreshToken}; path=/; max-age=${60 * 60 * 24 * 30}; SameSite=Lax${secure}`;
+          }
+        }
+        document.cookie = `admin_session=1; path=/; max-age=86400; SameSite=Lax${secure}`;
+      } catch { /* ignore */ }
+
+      const meRes = await fetchWithTimeout('/api/admin/me', {
+        credentials: 'include',
+        headers: { Authorization: `Bearer ${accessToken}` },
+        timeoutMs: 15000,
+      });
+
+      if (!meRes.ok) {
+        const errBody = await readJsonSafe<{ error?: string }>(meRes);
+        if (meRes.status === 503) router.push('/admin/login?error=config');
+        else if (meRes.status === 404) router.push('/admin/login?error=no_profile');
+        else if (meRes.status === 403 && errBody?.error === 'Role disabled') router.push('/admin/login?error=role_disabled');
+        else router.push('/admin/login');
+        return;
+      }
+
+      const json = await readJsonSafe<{
+        profile?: { role?: string };
+        permissions?: Record<string, boolean>;
+        user?: { id?: string; email?: string };
+      }>(meRes);
+
+      if (!json) {
+        setAuthError('Invalid response from server. Please try again.');
+        return;
+      }
+
+      const profileData = json.profile ?? null;
+      const permissions = (json.permissions && typeof json.permissions === 'object') ? json.permissions : {};
+      const meUser = json.user ?? null;
+      const role = profileData?.role != null ? String(profileData.role) : '';
+
+      if (role !== 'admin') {
+        if (projectRef) {
+          document.cookie = `sb-${projectRef}-access-token=; path=/; max-age=0; SameSite=Lax${secure}`;
+          document.cookie = `sb-${projectRef}-refresh-token=; path=/; max-age=0; SameSite=Lax${secure}`;
+        }
+        document.cookie = `sb-access-token=; path=/; max-age=0; SameSite=Lax${secure}`;
+        document.cookie = `admin_session=; path=/; max-age=0; SameSite=Lax${secure}`;
+        router.push('/admin/login?error=unauthorized');
+        return;
+      }
+
+      setUser(meUser);
+      setUserRole(role);
+      if (Object.keys(permissions).length > 0) setRolePermissions(permissions);
+      setIsAuthenticated(true);
+    } catch (err) {
+      if (err instanceof TimeoutError) {
+        setAuthError('Session check timed out. Check your connection and retry.');
+      } else {
+        setAuthError('Could not verify your session. Please try again.');
+      }
+      console.warn('Admin auth check failed:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [router, getAccessToken, projectRef, readProjectCookie]);
+
+  useEffect(() => {
+    checkAuth();
+  // Auth runs once on mount — not on every route change
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
     const secure = typeof window !== 'undefined' && window.location.protocol === 'https:' ? '; Secure' : '';
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'TOKEN_REFRESHED' && session) {
@@ -168,7 +176,7 @@ export default function AdminLayout({
     });
 
     return () => subscription.unsubscribe();
-  }, [pathname, router]);
+  }, [projectRef]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -182,17 +190,20 @@ export default function AdminLayout({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [showUserMenu]);
 
-  // Fetch Modules Effect
   useEffect(() => {
     async function fetchModules() {
       try {
-        const { data, error } = await supabase.from('store_modules').select('id, enabled');
-        if (error) {
-          console.warn('Error fetching modules:', error);
+        const res = await fetchWithTimeout('/api/admin/modules', {
+          credentials: 'include',
+          timeoutMs: 15000,
+        });
+        if (!res.ok) {
+          console.warn('Error fetching modules:', res.status);
           return;
         }
-        if (data) {
-          setEnabledModules(data.filter((m: any) => m.enabled).map((m: any) => m.id));
+        const json = await readJsonSafe<{ modules?: Array<{ id: string; enabled: boolean }> }>(res);
+        if (json?.modules) {
+          setEnabledModules(json.modules.filter((m) => m.enabled).map((m) => m.id));
         }
       } catch (err) {
         console.warn('Fetch modules failed:', err);
@@ -201,21 +212,16 @@ export default function AdminLayout({
     fetchModules();
   }, []);
 
-  // Screen size check for initial state
   useEffect(() => {
     const handleResize = () => {
       if (window.innerWidth < 1024) {
-        // Only set to false if it's currently true? 
-        // Actually, let's just default to open on desktop, closed on mobile on mount only
+        // Only set to false if it's currently true?
       }
     };
 
-    // Set initial state based on width
     if (window.innerWidth < 1024) {
       setIsSidebarOpen(false);
     }
-
-    // Optional: Auto-close on resize to mobile? For now, leave as is.
   }, []);
 
   const [cacheCleared, setCacheCleared] = useState(false);
@@ -240,8 +246,6 @@ export default function AdminLayout({
 
   const handleLogout = async () => {
     const secure = typeof window !== 'undefined' && window.location.protocol === 'https:' ? '; Secure' : '';
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-    const projectRef = supabaseUrl.split('//')[1]?.split('.')[0] || '';
     if (projectRef) {
       document.cookie = `sb-${projectRef}-access-token=; path=/; max-age=0; SameSite=Lax${secure}`;
       document.cookie = `sb-${projectRef}-refresh-token=; path=/; max-age=0; SameSite=Lax${secure}`;
@@ -249,30 +253,37 @@ export default function AdminLayout({
     document.cookie = `sb-access-token=; path=/; max-age=0; SameSite=Lax${secure}`;
     document.cookie = `sb-refresh-token=; path=/; max-age=0; SameSite=Lax${secure}`;
     document.cookie = `admin_session=; path=/; max-age=0; SameSite=Lax${secure}`;
-    await supabase.auth.signOut();
+    try {
+      await supabase.auth.signOut();
+    } catch { /* don't block navigation */ }
     router.push('/admin/login');
   };
 
-  // Fetch current maintenance flag
   useEffect(() => {
     if (!isAuthenticated) return;
-    supabase
-      .from('store_settings')
-      .select('value')
-      .eq('key', 'maintenance_mode')
-      .maybeSingle()
-      .then(({ data }) => {
-        const raw = (data as { value?: unknown } | null)?.value;
-        const isOn =
-          raw === true ||
-          raw === 'true' ||
-          (typeof raw === 'string' && raw.replace(/"/g, '').toLowerCase() === 'true');
-        setMaintenanceEnabled(isOn);
-      });
+    let cancelled = false;
+
+    async function fetchMaintenance() {
+      try {
+        const res = await fetchWithTimeout('/api/admin/settings?key=maintenance_mode', {
+          credentials: 'include',
+          timeoutMs: 15000,
+        });
+        if (!res.ok || cancelled) return;
+        const json = await readJsonSafe<{ enabled?: boolean }>(res);
+        if (!cancelled && json) {
+          setMaintenanceEnabled(Boolean(json.enabled));
+        }
+      } catch (err) {
+        console.warn('Failed to load maintenance setting:', err);
+      }
+    }
+
+    fetchMaintenance();
+    return () => { cancelled = true; };
   }, [isAuthenticated]);
 
   const handleToggleMaintenance = async () => {
-    // Only super admins can toggle. Staff are blocked client-side and by RLS.
     if (userRole !== 'admin') {
       alert('Only an admin can toggle maintenance mode.');
       return;
@@ -280,15 +291,17 @@ export default function AdminLayout({
     const next = !maintenanceEnabled;
     setMaintenanceToggling(true);
     try {
-      const { error } = await supabase.from('store_settings').upsert(
-        {
-          key: 'maintenance_mode',
-          value: next ? 'true' : 'false',
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: 'key' }
-      );
-      if (error) throw error;
+      const res = await fetchWithTimeout('/api/admin/settings', {
+        method: 'PUT',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key: 'maintenance_mode', enabled: next }),
+        timeoutMs: 15000,
+      });
+      if (!res.ok) {
+        const err = await readJsonSafe<{ error?: string }>(res);
+        throw new Error(err?.error || 'Failed to update maintenance mode');
+      }
       setMaintenanceEnabled(next);
     } catch (err) {
       console.error('Failed to toggle maintenance:', err);
@@ -298,8 +311,31 @@ export default function AdminLayout({
     }
   };
 
+  if (pathname === '/admin/login') {
+    return <>{children}</>;
+  }
+
   if (isLoading) {
     return <div className="min-h-screen flex items-center justify-center bg-brand-ivory text-brand-text">Loading Admin...</div>;
+  }
+
+  if (authError) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-brand-ivory text-brand-text p-6">
+        <div className="max-w-md w-full text-center bg-white rounded-xl border border-brand-supporting/30 shadow-sm p-8">
+          <i className="ri-wifi-off-line text-4xl text-brand-accent mb-4 block" />
+          <h2 className="text-lg font-bold text-brand-text mb-2">Could not load admin</h2>
+          <p className="text-brand-text/70 text-sm mb-6">{authError}</p>
+          <button
+            type="button"
+            onClick={() => checkAuth()}
+            className="px-5 py-2.5 bg-brand-primary text-brand-text rounded-lg font-semibold hover:opacity-90 transition-opacity cursor-pointer"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
   }
 
   const menuItems = [
@@ -439,12 +475,6 @@ export default function AdminLayout({
     return true;
   });
 
-  // Special layout for Login Page
-  if (pathname === '/admin/login') {
-    return <>{children}</>;
-  }
-
-  // POS gets a full-screen layout with no sidebar or header
   const isPOS = pathname === '/admin/pos';
   const isPrint = pathname.includes('/print');
   if ((isPOS || isPrint) && isAuthenticated) {
@@ -461,7 +491,6 @@ export default function AdminLayout({
     <AdminBranchProvider>
     <div className="min-h-screen bg-brand-ivory text-brand-text">
 
-      {/* Mobile Overlay */}
       {isSidebarOpen && (
         <div
           className="fixed inset-0 bg-brand-text/30 z-30 lg:hidden glass-overlay"
@@ -469,7 +498,6 @@ export default function AdminLayout({
         />
       )}
 
-      {/* Sidebar - Mobile: Transform / Desktop: Width transition */}
       <aside
         className={`fixed top-0 left-0 z-40 h-screen bg-gradient-to-b from-brand-secondary via-brand-ivory to-brand-secondary border-r border-brand-supporting/25 transition-all duration-300
           w-64
@@ -514,7 +542,6 @@ export default function AdminLayout({
           </nav>
 
           <div className="mt-8 pt-8 border-t border-brand-supporting/20 space-y-1">
-            {/* Maintenance Mode Toggle — super admin only */}
             {userRole === 'admin' && (
               <div
                 className={`flex items-center justify-between px-4 py-3 rounded-lg ${maintenanceEnabled ? 'bg-brand-primary/35' : 'bg-brand-secondary/60'
@@ -570,7 +597,6 @@ export default function AdminLayout({
         </div>
       </aside>
 
-      {/* Main Content */}
       <div className={`transition-all duration-300 ml-0 ${isSidebarOpen ? 'lg:ml-64' : 'lg:ml-0'}`}>
         <header className="bg-brand-ivory/90 backdrop-blur border-b border-brand-supporting/20 sticky top-0 z-30">
           <div className="px-4 py-4 lg:px-6 flex items-center justify-between">

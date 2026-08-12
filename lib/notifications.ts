@@ -142,6 +142,7 @@ export async function sendSMS({ to, message }: { to: string; message: string }) 
                 'Content-Type': 'application/json',
                 'X-API-VASKEY': smsVasKey
             },
+            signal: AbortSignal.timeout(10000),
             body: JSON.stringify({
                 type: 1,
                 senderid: process.env.SMS_SENDER_ID || 'YOUR_BRAND_NAME',

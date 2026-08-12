@@ -13,18 +13,36 @@ export default function KnowledgeBasePage() {
   const [showModal, setShowModal] = useState(searchParams.get('new') === '1');
   const [editingArticle, setEditingArticle] = useState<any>(null);
 
-  const fetchArticles = useCallback(async () => {
+  const fetchArticles = useCallback(async (signal?: AbortSignal) => {
     setLoading(true);
-    const params = new URLSearchParams();
-    if (search) params.set('search', search);
-    if (categoryFilter) params.set('category', categoryFilter);
-    const res = await fetch(`/api/support/knowledge-base?${params}`);
-    const data = await res.json();
-    setArticles(data.data || []);
-    setLoading(false);
+    try {
+      const params = new URLSearchParams();
+      if (search) params.set('search', search);
+      if (categoryFilter) params.set('category', categoryFilter);
+      const res = await fetch(`/api/support/knowledge-base?${params}`, {
+        credentials: 'include',
+        signal,
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!signal?.aborted) setArticles(data.data || []);
+    } catch (err: any) {
+      if (err?.name !== 'AbortError') console.error('KB fetch failed:', err);
+    } finally {
+      if (!signal?.aborted) setLoading(false);
+    }
   }, [search, categoryFilter]);
 
-  useEffect(() => { fetchArticles(); }, [fetchArticles]);
+  // Debounce search/filter to avoid a request on every keystroke
+  useEffect(() => {
+    const controller = new AbortController();
+    const timer = setTimeout(() => {
+      void fetchArticles(controller.signal);
+    }, search ? 300 : 0);
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [fetchArticles, search]);
 
   async function deleteArticle(id: string) {
     if (!confirm('Delete this article?')) return;

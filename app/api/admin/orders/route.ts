@@ -53,6 +53,8 @@ export async function GET(request: Request) {
     }
 
     // Full orders list
+    const limit = Math.min(Math.max(parseInt(searchParams.get('limit') || '200', 10) || 200, 1), 500);
+
     let ordersQuery = supabaseAdmin
       .from('orders')
       .select(`
@@ -78,7 +80,8 @@ export async function GET(request: Request) {
           product_name
         )
       `)
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: false })
+      .limit(limit);
 
     if (branchId) ordersQuery = ordersQuery.eq('branch_id', branchId);
 

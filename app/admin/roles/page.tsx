@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { supabase } from '@/lib/supabase';
+import { fetchWithTimeout, readJsonSafe, TimeoutError } from '@/lib/http';
 
 interface Role {
     id: string;
@@ -41,6 +41,7 @@ const PERMISSION_KEYS = Object.keys(PERMISSION_LABELS);
 export default function RolesPage() {
     const [roles, setRoles] = useState<Role[]>([]);
     const [loading, setLoading] = useState(true);
+    const [loadError, setLoadError] = useState<string | null>(null);
     const [saving, setSaving] = useState<string | null>(null);
     const [expandedRole, setExpandedRole] = useState<string | null>(null);
     const [userRole, setUserRole] = useState<string | null>(null);
@@ -48,47 +49,53 @@ export default function RolesPage() {
 
     useEffect(() => {
         fetchRoles();
-        fetchCurrentUser();
-        fetchUserCounts();
     }, []);
 
-    async function fetchCurrentUser() {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (session) {
-            const { data: profile } = await supabase
-                .from('profiles')
-                .select('role')
-                .eq('id', session.user.id)
-                .single();
-            if (profile) setUserRole(profile.role);
-        }
-    }
-
     async function fetchRoles() {
-        const { data, error } = await supabase
-            .from('roles')
-            .select('*')
-            .order('is_system', { ascending: false });
-
-        if (error) {
-            console.error('Error fetching roles:', error);
-            return;
+        setLoading(true);
+        setLoadError(null);
+        try {
+            const res = await fetchWithTimeout('/api/admin/roles', {
+                credentials: 'include',
+                timeoutMs: 15000,
+            });
+            if (!res.ok) {
+                const err = await readJsonSafe<{ error?: string }>(res);
+                throw new Error(err?.error || `Failed to load roles (${res.status})`);
+            }
+            const json = await readJsonSafe<{
+                roles?: Role[];
+                userCount?: Record<string, number>;
+                currentRole?: string | null;
+            }>(res);
+            setRoles(json?.roles || []);
+            setUserCount(json?.userCount || {});
+            if (json?.currentRole) setUserRole(json.currentRole);
+        } catch (err) {
+            const message = err instanceof TimeoutError
+                ? 'Request timed out loading roles.'
+                : err instanceof Error
+                    ? err.message
+                    : 'Failed to load roles.';
+            setLoadError(message);
+            console.error('Error fetching roles:', err);
+        } finally {
+            setLoading(false);
         }
-        setRoles(data || []);
-        setLoading(false);
     }
 
-    async function fetchUserCounts() {
-        const { data, error } = await supabase
-            .from('profiles')
-            .select('role');
-
-        if (error) return;
-        const counts: Record<string, number> = {};
-        (data || []).forEach((p: any) => {
-            counts[p.role] = (counts[p.role] || 0) + 1;
+    async function patchRole(body: Record<string, unknown>) {
+        const res = await fetchWithTimeout('/api/admin/roles', {
+            method: 'PATCH',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+            timeoutMs: 15000,
         });
-        setUserCount(counts);
+        if (!res.ok) {
+            const err = await readJsonSafe<{ error?: string }>(res);
+            throw new Error(err?.error || 'Update failed');
+        }
     }
 
     async function toggleRoleEnabled(role: Role) {
@@ -97,17 +104,14 @@ export default function RolesPage() {
         setSaving(role.id);
         const newEnabled = !role.enabled;
 
-        const { error } = await supabase
-            .from('roles')
-            .update({ enabled: newEnabled, updated_at: new Date().toISOString() })
-            .eq('id', role.id);
-
-        if (error) {
-            alert('Error updating role: ' + error.message);
-        } else {
+        try {
+            await patchRole({ id: role.id, enabled: newEnabled });
             setRoles(prev => prev.map(r => r.id === role.id ? { ...r, enabled: newEnabled } : r));
+        } catch (err) {
+            alert('Error updating role: ' + (err instanceof Error ? err.message : 'Unknown error'));
+        } finally {
+            setSaving(null);
         }
-        setSaving(null);
     }
 
     async function togglePermission(roleId: string, permKey: string) {
@@ -117,17 +121,14 @@ export default function RolesPage() {
         const newPermissions = { ...role.permissions, [permKey]: !role.permissions[permKey] };
 
         setSaving(roleId);
-        const { error } = await supabase
-            .from('roles')
-            .update({ permissions: newPermissions, updated_at: new Date().toISOString() })
-            .eq('id', roleId);
-
-        if (error) {
-            alert('Error updating permissions: ' + error.message);
-        } else {
+        try {
+            await patchRole({ id: roleId, permissions: newPermissions });
             setRoles(prev => prev.map(r => r.id === roleId ? { ...r, permissions: newPermissions } : r));
+        } catch (err) {
+            alert('Error updating permissions: ' + (err instanceof Error ? err.message : 'Unknown error'));
+        } finally {
+            setSaving(null);
         }
-        setSaving(null);
     }
 
     async function toggleAllPermissions(roleId: string, enable: boolean) {
@@ -140,20 +141,17 @@ export default function RolesPage() {
         });
 
         setSaving(roleId);
-        const { error } = await supabase
-            .from('roles')
-            .update({ permissions: newPermissions, updated_at: new Date().toISOString() })
-            .eq('id', roleId);
-
-        if (error) {
-            alert('Error updating permissions: ' + error.message);
-        } else {
+        try {
+            await patchRole({ id: roleId, permissions: newPermissions });
             setRoles(prev => prev.map(r => r.id === roleId ? { ...r, permissions: newPermissions } : r));
+        } catch (err) {
+            alert('Error updating permissions: ' + (err instanceof Error ? err.message : 'Unknown error'));
+        } finally {
+            setSaving(null);
         }
-        setSaving(null);
     }
 
-    if (userRole !== 'admin') {
+    if (userRole !== null && userRole !== 'admin') {
         return (
             <div className="min-h-[60vh] flex items-center justify-center">
                 <div className="text-center">
@@ -181,7 +179,24 @@ export default function RolesPage() {
         );
     }
 
-    const enabledCount = PERMISSION_KEYS.filter(k => roles.find(r => r.id === expandedRole)?.permissions[k]).length;
+    if (loadError) {
+        return (
+            <div className="min-h-[40vh] flex items-center justify-center">
+                <div className="text-center max-w-md">
+                    <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+                        {loadError}
+                    </div>
+                    <button
+                        type="button"
+                        onClick={fetchRoles}
+                        className="px-4 py-2 bg-gray-900 text-white rounded-lg font-medium hover:bg-gray-800 cursor-pointer"
+                    >
+                        Retry
+                    </button>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="space-y-6">

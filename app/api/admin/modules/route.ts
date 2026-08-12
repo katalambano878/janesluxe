@@ -2,6 +2,22 @@ import { NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase-admin';
 
+/** GET /api/admin/modules — list module enablement for admin shell. */
+export async function GET(request: Request) {
+  const gate = await requireAdmin(request);
+  if ('response' in gate) return gate.response;
+
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('store_modules')
+      .select('id, enabled');
+    if (error) throw error;
+    return NextResponse.json({ modules: data || [] });
+  } catch (e: any) {
+    return NextResponse.json({ error: e?.message || 'Failed to load modules' }, { status: 500 });
+  }
+}
+
 /**
  * PATCH /api/admin/modules
  * Body: { id: string, enabled: boolean }

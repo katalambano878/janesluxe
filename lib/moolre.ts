@@ -56,6 +56,7 @@ export async function moolreGenerateLink(params: {
         const res = await fetch(`${MOOLRE_BASE}/embed/link`, {
             method: 'POST',
             headers: moolrePublicHeaders(),
+            signal: AbortSignal.timeout(12000),
             body: JSON.stringify({
                 type: 1,
                 amount: String(params.amount),
@@ -123,6 +124,7 @@ export async function moolreCheckStatus(externalref: string): Promise<MoolreStat
         const res = await fetch(`${MOOLRE_BASE}/open/transact/status`, {
             method: 'POST',
             headers: moolrePublicHeaders(),
+            signal: AbortSignal.timeout(12000),
             body: JSON.stringify({
                 type: 1,
                 idtype: '1', // 1 = our unique externalref
@@ -200,6 +202,7 @@ export async function moolreListTransactions(params: {
         const res = await fetch(`${MOOLRE_BASE}/open/account/status`, {
             method: 'POST',
             headers,
+            signal: AbortSignal.timeout(12000),
             body: JSON.stringify({
                 type: 2,
                 accountnumber: process.env.MOOLRE_ACCOUNT_NUMBER || '',

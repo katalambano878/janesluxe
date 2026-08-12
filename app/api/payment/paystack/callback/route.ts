@@ -3,6 +3,7 @@ import crypto from 'crypto';
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import { sendOrderConfirmation } from '@/lib/notifications';
 import { checkRateLimit, getClientIdentifier, RATE_LIMITS } from '@/lib/rate-limit';
+import { markPaymentWebhookProcessed, recordPaymentWebhookEvent } from '@/lib/payment-events';
 
 /**
  * Paystack Webhook Handler
@@ -88,6 +89,20 @@ export async function POST(req: Request) {
             return NextResponse.json({ success: false, message: 'Missing order reference' }, { status: 400 });
         }
 
+        const eventRec = await recordPaymentWebhookEvent({
+            gateway: 'paystack',
+            externalEventId: data.id != null ? String(data.id) : (rawRef || null),
+            externalRef: rawRef || null,
+            orderNumber: merchantOrderRef,
+            amount: data.amount != null ? Number(data.amount) / 100 : null,
+            currency: data.currency || 'GHS',
+            payload: { event, reference: rawRef, status: data.status, id: data.id },
+            status: 'received',
+        });
+        if (eventRec.duplicate) {
+            return NextResponse.json({ success: true, message: 'Duplicate callback ignored' });
+        }
+
         // Status check — Paystack uses "success" for completed payments
         const isSuccess = String(data.status).toLowerCase() === 'success';
 
@@ -96,23 +111,30 @@ export async function POST(req: Request) {
 
             const { data: failedOrder } = await supabaseAdmin
                 .from('orders')
-                .select('metadata')
+                .select('payment_status, metadata')
                 .eq('order_number', merchantOrderRef)
                 .single();
 
-            await supabaseAdmin
-                .from('orders')
-                .update({
-                    payment_status: 'failed',
-                    metadata: {
-                        ...(failedOrder?.metadata || {}),
-                        paystack_reference: rawRef,
-                        failure_reason: data.gateway_response || 'Payment failed',
-                        failed_at: new Date().toISOString(),
-                    }
-                })
-                .eq('order_number', merchantOrderRef);
+            // Never overwrite a successful payment with a delayed failure
+            if (failedOrder?.payment_status !== 'paid') {
+                await supabaseAdmin
+                    .from('orders')
+                    .update({
+                        payment_status: 'failed',
+                        metadata: {
+                            ...(failedOrder?.metadata || {}),
+                            paystack_reference: rawRef,
+                            failure_reason: data.gateway_response || 'Payment failed',
+                            failed_at: new Date().toISOString(),
+                        }
+                    })
+                    .eq('order_number', merchantOrderRef)
+                    .neq('payment_status', 'paid');
+            }
 
+            if (eventRec.id) {
+                await markPaymentWebhookProcessed(eventRec.id, 'ignored', 'payment not successful');
+            }
             return NextResponse.json({ success: false, message: 'Payment not successful' });
         }
 
@@ -132,6 +154,7 @@ export async function POST(req: Request) {
         // Idempotent: already paid
         if (existingOrder.payment_status === 'paid') {
             console.log('[Paystack Callback] Order already paid, skipping:', merchantOrderRef);
+            if (eventRec.id) await markPaymentWebhookProcessed(eventRec.id, 'ignored', 'order already paid');
             return NextResponse.json({ success: true, message: 'Order already processed' });
         }
 
@@ -200,13 +223,12 @@ export async function POST(req: Request) {
             console.error('[Paystack Callback] Customer stats failed:', statsError.message);
         }
 
-        try {
-            console.log('[Paystack Callback] Sending notifications for:', orderJson.order_number);
-            await sendOrderConfirmation(orderJson);
-            console.log('[Paystack Callback] Notifications sent!');
-        } catch (notifyError: any) {
-            console.error('[Paystack Callback] Notification failed:', notifyError.message);
-        }
+        console.log('[Paystack Callback] Queuing notifications for:', orderJson.order_number);
+        void sendOrderConfirmation(orderJson).catch((notifyError: unknown) => {
+            console.error('[Paystack Callback] Notification failed:', notifyError instanceof Error ? notifyError.message : notifyError);
+        });
+
+        if (eventRec.id) await markPaymentWebhookProcessed(eventRec.id, 'processed');
 
         return NextResponse.json({ success: true, message: 'Payment verified and order updated' });
 
