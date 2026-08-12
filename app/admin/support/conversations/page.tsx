@@ -2,11 +2,11 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
-import { supabase } from '@/lib/supabase';
 
 export default function ConversationsPage() {
   const [conversations, setConversations] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [sentimentFilter, setSentimentFilter] = useState('');
@@ -30,27 +30,32 @@ export default function ConversationsPage() {
 
   const fetchConversations = useCallback(async () => {
     setLoading(true);
+    setLoadError(null);
     const offset = (page - 1) * limit;
 
-    // Use RPC for deep message search (searches inside actual chat messages)
-    const { data: result, error } = await supabase.rpc('search_chat_conversations', {
-      p_search: debouncedSearch || '',
-      p_sentiment: sentimentFilter || '',
-      p_resolved: resolvedFilter || '',
-      p_limit: limit,
-      p_offset: offset,
-    });
+    try {
+      const params = new URLSearchParams({
+        limit: String(limit),
+        offset: String(offset),
+      });
+      if (debouncedSearch) params.set('search', debouncedSearch);
+      if (sentimentFilter) params.set('sentiment', sentimentFilter);
+      if (resolvedFilter) params.set('status', resolvedFilter);
 
-    if (error) {
-      console.error('Search error:', error);
+      const res = await fetch(`/api/admin/support/conversations?${params}`, { credentials: 'include' });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json.error || 'Failed to load conversations');
+
+      setConversations(json.conversations || []);
+      setTotal(json.total ?? 0);
+    } catch (err: unknown) {
+      console.error('Search error:', err);
+      setLoadError(err instanceof Error ? err.message : 'Failed to load conversations');
       setConversations([]);
       setTotal(0);
-    } else {
-      const parsed = typeof result === 'string' ? JSON.parse(result) : result;
-      setConversations(parsed?.data || []);
-      setTotal(parsed?.total || 0);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }, [page, debouncedSearch, sentimentFilter, resolvedFilter]);
 
   useEffect(() => { fetchConversations(); }, [fetchConversations]);
@@ -99,6 +104,12 @@ export default function ConversationsPage() {
           <p className="text-sm text-gray-500 mt-1">{total} total conversations</p>
         </div>
       </div>
+
+      {loadError && (
+        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {loadError}
+        </div>
+      )}
 
       {/* Filters */}
       <div className="bg-white rounded-xl border border-gray-100 p-4">

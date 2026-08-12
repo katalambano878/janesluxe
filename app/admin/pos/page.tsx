@@ -253,7 +253,7 @@ export default function POSPage() {
             if (lr) setLastReceipt(JSON.parse(lr));
         } catch {}
 
-        // Load cashier name
+        // Load cashier name (session profile — not yet on /api/admin/me)
         supabase.auth.getSession().then(({ data: { session } }) => {
             if (session) {
                 supabase.from('profiles').select('full_name').eq('id', session.user.id).single()
@@ -348,35 +348,46 @@ export default function POSPage() {
     const fetchData = async () => {
         try {
             setLoading(true);
-            const { data: prodData } = await supabase
-                .from('products')
-                .select(`id, name, price, quantity, sku, metadata, categories(name), product_images(url)`)
-                .eq('status', 'active')
-                .order('name');
 
-            if (prodData) {
-                const formatted: Product[] = prodData.map((p: any) => ({
+            const [productsRes, customersRes] = await Promise.all([
+                fetch('/api/admin/products?sortBy=name', { credentials: 'include' }),
+                fetch('/api/admin/customers?limit=200', { credentials: 'include' }),
+            ]);
+
+            const productsJson = await productsRes.json().catch(() => ({}));
+            if (!productsRes.ok) throw new Error(productsJson.error || 'Failed to load products');
+
+            const prodData = Array.isArray(productsJson) ? productsJson : [];
+            const formatted: Product[] = prodData
+                .filter((p: any) => p.status === 'active')
+                .map((p: any) => ({
                     id: p.id,
                     name: p.name,
                     price: p.price,
                     quantity: p.quantity,
-                    category: p.categories?.name || 'Uncategorized',
-                    image: p.product_images?.[0]?.url || '',
+                    category: p.category || p.categories?.name || 'Uncategorized',
+                    image: p.image || p.product_images?.[0]?.url || '',
                     sku: p.sku || '',
                     barcode: p.metadata?.barcode || p.sku || '',
                 }));
-                setProducts(formatted);
-                const cats = Array.from(new Set(formatted.map(p => p.category))).sort();
-                setCategories(['All', ...cats]);
-            }
+            setProducts(formatted);
+            const cats = Array.from(new Set(formatted.map(p => p.category))).sort();
+            setCategories(['All', ...cats]);
 
-            const { data: custData } = await supabase
-                .from('customers')
-                .select('id, full_name, email, phone')
-                .order('full_name')
-                .limit(200);
-            if (custData) setCustomers(custData);
-        } catch (error) {
+            const customersJson = await customersRes.json().catch(() => ({}));
+            if (customersRes.ok) {
+                const custData = customersJson.customers || [];
+                setCustomers(custData.map((c: any) => ({
+                    id: c.id,
+                    full_name: c.full_name ||
+                        (c.first_name && c.last_name ? `${c.first_name} ${c.last_name}` : null) ||
+                        c.first_name ||
+                        'No Name',
+                    email: c.email,
+                    phone: c.phone,
+                })));
+            }
+        } catch (error: any) {
             console.error('Error fetching POS data:', error);
         } finally {
             setLoading(false);
@@ -385,26 +396,13 @@ export default function POSPage() {
 
     const fetchDailySummary = async () => {
         try {
-            const todayStart = new Date();
-            todayStart.setHours(0, 0, 0, 0);
-
-            const { data } = await supabase
-                .from('orders')
-                .select('total, payment_method, payment_status')
-                .gte('created_at', todayStart.toISOString())
-                .eq('metadata->>pos_sale', 'true');
-
-            if (data) {
-                const paid = data.filter(o => o.payment_status === 'paid');
-                setDailySummary({
-                    totalSales: paid.reduce((s, o) => s + Number(o.total), 0),
-                    orderCount: paid.length,
-                    cashSales: paid.filter(o => o.payment_method === 'cash').reduce((s, o) => s + Number(o.total), 0),
-                    cardSales: paid.filter(o => o.payment_method === 'card').reduce((s, o) => s + Number(o.total), 0),
-                    momoSales: paid.filter(o => o.payment_method === 'paystack' || o.payment_method === 'moolre').reduce((s, o) => s + Number(o.total), 0),
-                });
-            }
-        } catch {}
+            const res = await fetch('/api/admin/pos/summary', { credentials: 'include' });
+            const json = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(json.error || 'Failed to fetch daily summary');
+            setDailySummary(json);
+        } catch (err) {
+            console.error('Error fetching POS summary:', err);
+        }
     };
 
     // ─── Cart Functions ─────────────────────────────────────────────────────

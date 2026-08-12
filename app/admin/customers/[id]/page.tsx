@@ -1,18 +1,17 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { supabase } from '@/lib/supabase';
-import { useRouter, useParams } from 'next/navigation';
+import { useParams } from 'next/navigation';
 import Link from 'next/link';
 
 export default function CustomerDetailsPage() {
-    const router = useRouter();
     const params = useParams();
     const customerId = params.id as string;
     
     const [customer, setCustomer] = useState<any>(null);
     const [orders, setOrders] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
+    const [loadError, setLoadError] = useState<string | null>(null);
 
     useEffect(() => {
         if (customerId) {
@@ -23,37 +22,33 @@ export default function CustomerDetailsPage() {
 
     const fetchCustomerData = async () => {
         try {
-            // 1. Fetch Profile
-            const { data: profile, error: profileError } = await supabase
-                .from('profiles')
-                .select('*')
-                .eq('id', customerId)
-                .single();
+            setLoading(true);
+            setLoadError(null);
 
-            if (profileError) throw profileError;
+            const res = await fetch(`/api/admin/customers/${customerId}`, { credentials: 'include' });
+            const json = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(json.error || 'Failed to fetch customer');
 
-            // 2. Fetch Orders
-            const { data: ordersData, error: ordersError } = await supabase
-                .from('orders')
-                .select('*')
-                .eq('user_id', customerId)
-                .order('created_at', { ascending: false });
-
-            if (ordersError && ordersError.code !== 'PGRST116') { // Ignore not found if simply no orders? No, select returns empty array usually
-                // Actually select returns empty array if no match, not error.
-            }
-
-            setCustomer(profile);
-            setOrders(ordersData || []);
-        } catch (err) {
+            setCustomer(json.customer);
+            setOrders(json.orders || []);
+        } catch (err: any) {
             console.error('Error fetching customer:', err);
+            setLoadError(err?.message || 'Failed to load customer');
+            setCustomer(null);
+            setOrders([]);
         } finally {
             setLoading(false);
         }
     };
 
     if (loading) return <div className="p-8 text-center text-gray-500">Loading customer details...</div>;
+    if (loadError) return <div className="p-8 text-center text-red-600">{loadError}</div>;
     if (!customer) return <div className="p-8 text-center text-red-500">Customer not found</div>;
+
+    const displayName = customer.full_name ||
+        (customer.first_name && customer.last_name ? `${customer.first_name} ${customer.last_name}` : null) ||
+        customer.first_name ||
+        'No Name';
 
     const totalSpent = orders.reduce((sum, order) => sum + (order.total || 0), 0);
 
@@ -66,10 +61,10 @@ export default function CustomerDetailsPage() {
                         <i className="ri-arrow-left-line text-xl"></i>
                     </Link>
                     <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center text-gray-900 text-2xl font-bold">
-                        {customer.full_name?.charAt(0) || customer.email.charAt(0).toUpperCase()}
+                        {displayName.charAt(0) || customer.email.charAt(0).toUpperCase()}
                     </div>
                     <div>
-                        <h1 className="text-3xl font-bold text-gray-900">{customer.full_name || 'No Name'}</h1>
+                        <h1 className="text-3xl font-bold text-gray-900">{displayName}</h1>
                         <p className="text-gray-500">{customer.email}</p>
                     </div>
                 </div>

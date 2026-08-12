@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useCallback, use } from 'react';
 import Link from 'next/link';
-import { supabase } from '@/lib/supabase';
 import MarkdownMessage from '@/components/MarkdownMessage';
 
 export default function ConversationDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -10,6 +9,8 @@ export default function ConversationDetailPage({ params }: { params: Promise<{ i
   const [conversation, setConversation] = useState<any>(null);
   const [memories, setMemories] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [newMemory, setNewMemory] = useState('');
   const [memoryType, setMemoryType] = useState('context');
   const [addingMemory, setAddingMemory] = useState(false);
@@ -17,17 +18,22 @@ export default function ConversationDetailPage({ params }: { params: Promise<{ i
 
   const fetchData = useCallback(async () => {
     setLoading(true);
-    const { data: conv } = await supabase.from('chat_conversations').select('*').eq('id', id).single();
-    setConversation(conv);
+    setLoadError(null);
+    try {
+      const res = await fetch(`/api/admin/support/conversations/${id}`, { credentials: 'include' });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json.error || 'Failed to load conversation');
 
-    if (conv?.user_id) {
-      const { data: memData } = await supabase.from('ai_memory').select('*').eq('customer_id', conv.user_id).order('created_at', { ascending: false });
-      setMemories(memData || []);
-    } else if (conv?.customer_email) {
-      const { data: memData } = await supabase.from('ai_memory').select('*').eq('customer_email', conv.customer_email).order('created_at', { ascending: false });
-      setMemories(memData || []);
+      setConversation(json.conversation ?? null);
+      setMemories(json.memories || []);
+    } catch (err: unknown) {
+      console.error(err);
+      setLoadError(err instanceof Error ? err.message : 'Failed to load conversation');
+      setConversation(null);
+      setMemories([]);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }, [id]);
 
   useEffect(() => {
@@ -37,28 +43,59 @@ export default function ConversationDetailPage({ params }: { params: Promise<{ i
   async function addMemoryNote() {
     if (!newMemory.trim()) return;
     setAddingMemory(true);
-    await supabase.from('ai_memory').insert({
-      customer_id: conversation?.user_id || null,
-      customer_email: conversation?.customer_email || null,
-      memory_type: memoryType,
-      content: newMemory.trim(),
-      importance: 'normal',
-      source_conversation_id: id,
-    });
-    setNewMemory('');
-    await fetchData();
-    setAddingMemory(false);
+    setActionError(null);
+    try {
+      const res = await fetch(`/api/admin/support/conversations/${id}`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          memory_type: memoryType,
+          content: newMemory.trim(),
+        }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json.error || 'Failed to add memory');
+      setNewMemory('');
+      await fetchData();
+    } catch (err: unknown) {
+      setActionError(err instanceof Error ? err.message : 'Failed to add memory');
+    } finally {
+      setAddingMemory(false);
+    }
   }
 
   async function deleteMemory(memId: string) {
-    await supabase.from('ai_memory').delete().eq('id', memId);
-    setMemories(prev => prev.filter(m => m.id !== memId));
+    setActionError(null);
+    try {
+      const res = await fetch(`/api/admin/support/conversations/${id}?memoryId=${memId}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json.error || 'Failed to delete memory');
+      setMemories(prev => prev.filter(m => m.id !== memId));
+    } catch (err: unknown) {
+      setActionError(err instanceof Error ? err.message : 'Failed to delete memory');
+    }
   }
 
   async function toggleResolved() {
     const newVal = !conversation.is_resolved;
-    await supabase.from('chat_conversations').update({ is_resolved: newVal }).eq('id', id);
-    setConversation({ ...conversation, is_resolved: newVal });
+    setActionError(null);
+    try {
+      const res = await fetch(`/api/admin/support/conversations/${id}`, {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ is_resolved: newVal }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json.error || 'Failed to update conversation');
+      setConversation(json.conversation ?? { ...conversation, is_resolved: newVal });
+    } catch (err: unknown) {
+      setActionError(err instanceof Error ? err.message : 'Failed to update conversation');
+    }
   }
 
   async function createTicketFromConversation() {
@@ -83,8 +120,18 @@ export default function ConversationDetailPage({ params }: { params: Promise<{ i
     const data = await res.json();
     setCreatingTicket(false);
     if (data.data) {
-      await supabase.from('chat_conversations').update({ is_escalated: true, escalated_at: new Date().toISOString() }).eq('id', id);
-      setConversation({ ...conversation, is_escalated: true });
+      const patchRes = await fetch(`/api/admin/support/conversations/${id}`, {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ is_escalated: true }),
+      });
+      const patchJson = await patchRes.json().catch(() => ({}));
+      if (patchRes.ok) {
+        setConversation(patchJson.conversation ?? { ...conversation, is_escalated: true });
+      } else {
+        setConversation({ ...conversation, is_escalated: true });
+      }
       alert(`Ticket ${data.data.ticket_number} created!`);
     }
   }
@@ -94,7 +141,15 @@ export default function ConversationDetailPage({ params }: { params: Promise<{ i
   }
 
   if (!conversation) {
-    return <div className="text-center p-12"><p className="text-gray-500">Conversation not found</p></div>;
+    return (
+      <div className="text-center p-12">
+        {loadError ? (
+          <p className="text-red-600">{loadError}</p>
+        ) : (
+          <p className="text-gray-500">Conversation not found</p>
+        )}
+      </div>
+    );
   }
 
   let parsedMessages = conversation.messages;
@@ -114,6 +169,12 @@ export default function ConversationDetailPage({ params }: { params: Promise<{ i
 
   return (
     <div className="space-y-6">
+      {actionError && (
+        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {actionError}
+        </div>
+      )}
+
       {/* Breadcrumb */}
       <div className="flex items-center gap-2 text-sm text-gray-500">
         <Link href="/admin/support" className="hover:text-gray-700">Support</Link>

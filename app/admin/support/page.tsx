@@ -2,13 +2,13 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { supabase } from '@/lib/supabase';
 
 export default function SupportDashboard() {
   const [stats, setStats] = useState<any>(null);
   const [recentConversations, setRecentConversations] = useState<any[]>([]);
   const [openTickets, setOpenTickets] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
     fetchDashboard();
@@ -16,15 +16,24 @@ export default function SupportDashboard() {
 
   async function fetchDashboard() {
     setLoading(true);
-    const [statsRes, convosRes, ticketsRes] = await Promise.all([
-      supabase.rpc('get_support_dashboard_stats'),
-      supabase.from('chat_conversations').select('*').order('updated_at', { ascending: false }).limit(8),
-      supabase.from('support_tickets').select('*').in('status', ['open', 'in_progress', 'waiting_customer']).order('created_at', { ascending: false }).limit(10),
-    ]);
-    setStats(statsRes.data);
-    setRecentConversations(convosRes.data || []);
-    setOpenTickets(ticketsRes.data || []);
-    setLoading(false);
+    setLoadError(null);
+    try {
+      const res = await fetch('/api/admin/support/dashboard', { credentials: 'include' });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json.error || 'Failed to load dashboard');
+
+      setStats(json.stats ?? null);
+      setRecentConversations(json.conversations || []);
+      setOpenTickets(json.tickets || []);
+    } catch (err: unknown) {
+      console.error(err);
+      setLoadError(err instanceof Error ? err.message : 'Failed to load dashboard');
+      setStats(null);
+      setRecentConversations([]);
+      setOpenTickets([]);
+    } finally {
+      setLoading(false);
+    }
   }
 
   const sentimentIcon = (s: string) => {
@@ -76,6 +85,12 @@ export default function SupportDashboard() {
 
   return (
     <div className="space-y-6">
+      {loadError && (
+        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {loadError}
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>

@@ -2,13 +2,12 @@
 
 import Link from 'next/link';
 import { useState, useEffect, useMemo } from 'react';
-import { supabase } from '@/lib/supabase';
-
 export default function AdminCustomersPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCustomers, setSelectedCustomers] = useState<string[]>([]);
   const [customers, setCustomers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [sortOption, setSortOption] = useState('Sort by Join Date');
   const [filterStatus, setFilterStatus] = useState('All Customers');
 
@@ -20,165 +19,48 @@ export default function AdminCustomersPage() {
   const fetchCustomers = async () => {
     try {
       setLoading(true);
+      setLoadError(null);
 
-      // Fetch from new customers table (includes both guests and registered users)
-      const { data: customerData, error: cError } = await supabase
-        .from('customers')
-        .select('*')
-        .order('created_at', { ascending: false });
+      const res = await fetch('/api/admin/customers', { credentials: 'include' });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json.error || 'Failed to fetch customers');
 
-      if (cError) {
-        // Fallback to old profiles-based approach if customers table doesn't exist yet
-        console.warn('Customers table not available, falling back to profiles');
-        await fetchCustomersFromProfiles();
-        return;
-      }
-
-      if (customerData) {
-        const processed = customerData.map((customer: any) => {
-          // Determine status dynamically
-          let status = 'New';
-          const totalSpent = Number(customer.total_spent) || 0;
-          const totalOrders = customer.total_orders || 0;
-
-          if (totalSpent > 1000) status = 'VIP';
-          else if (totalOrders > 0) status = 'Active';
-          else if (new Date(customer.created_at).getTime() < Date.now() - 30 * 24 * 60 * 60 * 1000) status = 'Inactive';
-
-          const displayName = customer.full_name ||
-            (customer.first_name && customer.last_name ? `${customer.first_name} ${customer.last_name}` : null) ||
-            customer.first_name ||
-            'No Name';
-
-          return {
-            id: customer.id,
-            name: displayName,
-            email: customer.email,
-            phone: customer.phone || 'N/A',
-            avatar: getInitials(displayName !== 'No Name' ? displayName : customer.email),
-            orders: totalOrders,
-            totalSpent: totalSpent,
-            joined: new Date(customer.created_at).toLocaleDateString(),
-            lastOrder: customer.last_order_at ? timeAgo(new Date(customer.last_order_at)) : 'Never',
-            status: status,
-            rawJoined: new Date(customer.created_at),
-            rawLastOrder: customer.last_order_at ? new Date(customer.last_order_at) : null,
-            isGuest: !customer.user_id
-          };
-        });
-        setCustomers(processed);
-      }
-    } catch (error) {
-      console.error('Error fetching customers:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Fallback for when customers table doesn't exist
-  const fetchCustomersFromProfiles = async () => {
-    try {
-      const { data: profiles, error: pError } = await supabase
-        .from('profiles')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      if (pError) throw pError;
-
-      const { data: orders } = await supabase
-        .from('orders')
-        .select('id, user_id, email, total, created_at, status, shipping_address');
-
-      // Process registered users
-      const registeredCustomers = (profiles || []).map((profile: any) => {
-        const userOrders = orders?.filter(o => o.user_id === profile.id && o.status !== 'cancelled') || [];
-        const totalSpent = userOrders.reduce((sum, o) => sum + Number(o.total || 0), 0);
-        let lastOrderDate: Date | null = null;
-        if (userOrders.length > 0) {
-          const dates = userOrders.map(o => new Date(o.created_at).getTime());
-          lastOrderDate = new Date(Math.max(...dates));
-        }
-
+      const customerData = json.customers || [];
+      const processed = customerData.map((customer: any) => {
         let status = 'New';
+        const totalSpent = Number(customer.total_spent) || 0;
+        const totalOrders = customer.total_orders || 0;
+
         if (totalSpent > 1000) status = 'VIP';
-        else if (userOrders.length > 0) status = 'Active';
+        else if (totalOrders > 0) status = 'Active';
+        else if (new Date(customer.created_at).getTime() < Date.now() - 30 * 24 * 60 * 60 * 1000) status = 'Inactive';
+
+        const displayName = customer.full_name ||
+          (customer.first_name && customer.last_name ? `${customer.first_name} ${customer.last_name}` : null) ||
+          customer.first_name ||
+          'No Name';
 
         return {
-          id: profile.id,
-          name: profile.full_name || 'No Name',
-          email: profile.email,
-          phone: profile.phone || 'N/A',
-          avatar: getInitials(profile.full_name || profile.email),
-          orders: userOrders.length,
+          id: customer.id,
+          name: displayName,
+          email: customer.email,
+          phone: customer.phone || 'N/A',
+          avatar: getInitials(displayName !== 'No Name' ? displayName : customer.email),
+          orders: totalOrders,
           totalSpent,
-          joined: new Date(profile.created_at).toLocaleDateString(),
-          lastOrder: lastOrderDate ? timeAgo(lastOrderDate) : 'Never',
+          joined: new Date(customer.created_at).toLocaleDateString(),
+          lastOrder: customer.last_order_at ? timeAgo(new Date(customer.last_order_at)) : 'Never',
           status,
-          rawJoined: new Date(profile.created_at),
-          rawLastOrder: lastOrderDate,
-          isGuest: false
+          rawJoined: new Date(customer.created_at),
+          rawLastOrder: customer.last_order_at ? new Date(customer.last_order_at) : null,
+          isGuest: !customer.user_id,
         };
       });
-
-      // Process guest orders (no user_id)
-      const guestOrders = orders?.filter(o => !o.user_id && o.email) || [];
-      const guestMap = new Map<string, any>();
-
-      guestOrders.forEach(order => {
-        const existing = guestMap.get(order.email);
-        const orderTotal = Number(order.total) || 0;
-        const orderDate = new Date(order.created_at);
-
-        const firstName = order.shipping_address?.firstName || '';
-        const lastName = order.shipping_address?.lastName || '';
-        const fullName = order.shipping_address?.full_name || `${firstName} ${lastName}`.trim();
-
-        if (!existing) {
-          guestMap.set(order.email, {
-            email: order.email,
-            name: fullName || 'Guest',
-            phone: order.shipping_address?.phone || 'N/A',
-            orders: order.status !== 'cancelled' ? 1 : 0,
-            totalSpent: order.status !== 'cancelled' ? orderTotal : 0,
-            firstOrder: orderDate,
-            lastOrder: orderDate
-          });
-        } else {
-          if (order.status !== 'cancelled') {
-            existing.orders += 1;
-            existing.totalSpent += orderTotal;
-          }
-          if (orderDate < existing.firstOrder) existing.firstOrder = orderDate;
-          if (orderDate > existing.lastOrder) existing.lastOrder = orderDate;
-          if (!existing.name || existing.name === 'Guest') existing.name = fullName || existing.name;
-        }
-      });
-
-      const guestCustomers = Array.from(guestMap.values()).map((guest, idx) => {
-        let status = 'New';
-        if (guest.totalSpent > 1000) status = 'VIP';
-        else if (guest.orders > 0) status = 'Active';
-
-        return {
-          id: `guest-${idx}-${guest.email}`,
-          name: guest.name || 'Guest',
-          email: guest.email,
-          phone: guest.phone,
-          avatar: getInitials(guest.name || guest.email),
-          orders: guest.orders,
-          totalSpent: guest.totalSpent,
-          joined: guest.firstOrder.toLocaleDateString(),
-          lastOrder: timeAgo(guest.lastOrder),
-          status,
-          rawJoined: guest.firstOrder,
-          rawLastOrder: guest.lastOrder,
-          isGuest: true
-        };
-      });
-
-      setCustomers([...registeredCustomers, ...guestCustomers]);
-    } catch (error) {
-      console.error('Error in fallback fetch:', error);
+      setCustomers(processed);
+    } catch (error: any) {
+      console.error('Error fetching customers:', error);
+      setLoadError(error?.message || 'Failed to load customers');
+      setCustomers([]);
     } finally {
       setLoading(false);
     }
@@ -393,6 +275,8 @@ export default function AdminCustomersPage() {
             <tbody>
               {loading ? (
                 <tr><td colSpan={8} className="p-10 text-center text-gray-500">Loading customers...</td></tr>
+              ) : loadError ? (
+                <tr><td colSpan={8} className="p-10 text-center text-red-600">{loadError}</td></tr>
               ) : filteredCustomers.length === 0 ? (
                 <tr><td colSpan={8} className="p-10 text-center text-gray-500">No customers found.</td></tr>
               ) : (

@@ -1,13 +1,13 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { supabase } from '@/lib/supabase';
 
 export default function AdminReviewsPage() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [selectedReviews, setSelectedReviews] = useState<string[]>([]);
   const [reviews, setReviews] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
     fetchReviews();
@@ -17,42 +17,24 @@ export default function AdminReviewsPage() {
   const fetchReviews = async () => {
     try {
       setLoading(true);
-      const { data, error } = await supabase
-        .from('reviews')
-        .select(`
-          *,
-          profiles:user_id (full_name, email),
-          products:product_id (name, product_images (url))
-        `)
-        .order('created_at', { ascending: false });
+      setLoadError(null);
+      const res = await fetch('/api/admin/reviews', { credentials: 'include' });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json.error || 'Failed to fetch reviews');
 
-      if (error) {
-        // Graceful fallback if table doesn't exist or permissions fail
-        console.warn('Error fetching reviews:', error);
-        // setReviews([]); // Keep empty
-      } else if (data) {
-        const formatted = data.map((r: any) => ({
-          id: r.id,
-          customer: {
-            name: r.profiles?.full_name || 'Anonymous',
-            email: r.profiles?.email || 'N/A',
-            avatar: getInitials(r.profiles?.full_name || r.profiles?.email)
-          },
-          product: {
-            name: r.products?.name || 'Unknown Product',
-            image: r.products?.product_images?.[0]?.url || 'https://via.placeholder.com/150'
-          },
-          rating: r.rating,
-          title: r.title,
-          comment: r.content,
-          date: new Date(r.created_at).toLocaleDateString(),
-          status: r.status || 'Pending',
-          helpful: r.helpful || 0
-        }));
-        setReviews(formatted);
-      }
-    } catch (error) {
+      const formatted = (json.reviews || []).map((r: any) => ({
+        ...r,
+        date: r.date ? new Date(r.date).toLocaleDateString() : '',
+        customer: {
+          ...r.customer,
+          avatar: getInitials(r.customer?.name || r.customer?.email),
+        },
+      }));
+      setReviews(formatted);
+    } catch (error: any) {
       console.error('Error fetching reviews:', error);
+      setLoadError(error?.message || 'Failed to load reviews');
+      setReviews([]);
     } finally {
       setLoading(false);
     }
@@ -110,18 +92,20 @@ export default function AdminReviewsPage() {
       if (action === 'Reject') newStatus = 'Rejected';
 
       if (newStatus) {
-        const { error } = await supabase
-          .from('reviews')
-          .update({ status: newStatus })
-          .in('id', selectedReviews);
-
-        if (error) throw error;
+        const res = await fetch('/api/admin/reviews', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ ids: selectedReviews, status: newStatus }),
+        });
+        const json = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(json.error || 'Failed to update reviews');
         fetchReviews();
         setSelectedReviews([]);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error updating reviews', err);
-      alert('Failed to update reviews. Functionality might be limited.');
+      alert(err?.message || 'Failed to update reviews.');
     }
   };
 
@@ -242,6 +226,8 @@ export default function AdminReviewsPage() {
             <tbody>
               {loading ? (
                 <tr><td colSpan={6} className="p-8 text-center text-gray-500">Loading reviews...</td></tr>
+              ) : loadError ? (
+                <tr><td colSpan={6} className="p-8 text-center text-red-600">{loadError}</td></tr>
               ) : filteredReviews.length === 0 ? (
                 <tr><td colSpan={6} className="p-8 text-center text-gray-500">No reviews found in this category.</td></tr>
               ) : (

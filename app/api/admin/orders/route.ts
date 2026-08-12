@@ -11,7 +11,7 @@ export async function GET(request: Request) {
     const period = searchParams.get('period');
     const branchId = searchParams.get('branch');
 
-    // Sales stats mode
+    // Sales stats mode — two-step query for plain Postgres compat
     if (period !== null) {
       let startDate: string | null = null;
       const now = new Date();
@@ -19,18 +19,37 @@ export async function GET(request: Request) {
       else if (period === '7d') { const d = new Date(now); d.setDate(d.getDate() - 7); startDate = d.toISOString(); }
       else if (period === '30d') { const d = new Date(now); d.setDate(d.getDate() - 30); startDate = d.toISOString(); }
 
-      let query = supabaseAdmin
+      let paidOrdersQuery = supabaseAdmin
+        .from('orders')
+        .select('id, created_at, status, payment_status, branch_id')
+        .eq('payment_status', 'paid')
+        .neq('status', 'cancelled');
+
+      if (startDate) paidOrdersQuery = paidOrdersQuery.gte('created_at', startDate);
+      if (branchId) paidOrdersQuery = paidOrdersQuery.eq('branch_id', branchId);
+
+      const { data: paidOrders, error: ordersError } = await paidOrdersQuery;
+      if (ordersError) throw ordersError;
+
+      const orderIds = (paidOrders || []).map((o) => o.id);
+      if (orderIds.length === 0) {
+        return NextResponse.json({ items: [] });
+      }
+
+      const orderMap = new Map((paidOrders || []).map((o) => [o.id, o]));
+      const { data: orderItems, error: itemsError } = await supabaseAdmin
         .from('order_items')
-        .select(`quantity, product_name, product_id, variant_name, total_price, orders!inner(id, created_at, status, payment_status, branch_id)`)
-        .eq('orders.payment_status', 'paid')
-        .neq('orders.status', 'cancelled');
+        .select('quantity, product_name, product_id, variant_name, total_price, order_id')
+        .in('order_id', orderIds);
 
-      if (startDate) query = query.gte('orders.created_at', startDate);
-      if (branchId) query = query.eq('orders.branch_id', branchId);
+      if (itemsError) throw itemsError;
 
-      const { data, error } = await query;
-      if (error) throw error;
-      return NextResponse.json({ items: data || [] });
+      const items = (orderItems || []).map((item) => ({
+        ...item,
+        orders: orderMap.get(item.order_id) || null,
+      }));
+
+      return NextResponse.json({ items });
     }
 
     // Full orders list

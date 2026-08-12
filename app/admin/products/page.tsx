@@ -2,7 +2,6 @@
 
 import Link from 'next/link';
 import { useState, useEffect } from 'react';
-import { supabase } from '@/lib/supabase';
 import { useAdminBranch } from '@/context/AdminBranchContext';
 
 const PLACEHOLDER_IMAGE = 'https://via.placeholder.com/300?text=No+Image';
@@ -42,8 +41,15 @@ export default function ProductsPage() {
   }, [sortBy, branchLoading, selectedBranch?.id]);
 
   const fetchCategories = async () => {
-    const { data } = await supabase.from('categories').select('name');
-    if (data) setCategories(data);
+    try {
+      const res = await fetch('/api/admin/categories', { credentials: 'include' });
+      const data = await res.json().catch(() => []);
+      if (!res.ok) throw new Error(data?.error || 'Failed to fetch categories');
+      setCategories(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error('Error fetching categories:', err);
+      setCategories([]);
+    }
   };
 
   const fetchProducts = async () => {

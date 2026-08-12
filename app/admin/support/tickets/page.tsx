@@ -3,7 +3,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { supabase } from '@/lib/supabase';
 
 const STATUS_TABS = ['all', 'open', 'in_progress', 'waiting_customer', 'resolved', 'closed'];
 const PRIORITY_OPTIONS = ['all', 'urgent', 'high', 'medium', 'low'];
@@ -12,6 +11,7 @@ export default function TicketsPage() {
   const searchParams = useSearchParams();
   const [tickets, setTickets] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [statusTab, setStatusTab] = useState('all');
   const [priorityFilter, setPriorityFilter] = useState('all');
   const [search, setSearch] = useState('');
@@ -22,23 +22,32 @@ export default function TicketsPage() {
 
   const fetchTickets = useCallback(async () => {
     setLoading(true);
-    const from = (page - 1) * limit;
-    const to = from + limit - 1;
+    setLoadError(null);
+    const offset = (page - 1) * limit;
 
-    let query = supabase
-      .from('support_tickets')
-      .select('*', { count: 'exact' })
-      .order('created_at', { ascending: false })
-      .range(from, to);
+    try {
+      const params = new URLSearchParams({
+        limit: String(limit),
+        offset: String(offset),
+        status: statusTab,
+        priority: priorityFilter,
+      });
+      if (search) params.set('search', search);
 
-    if (statusTab !== 'all') query = query.eq('status', statusTab);
-    if (priorityFilter !== 'all') query = query.eq('priority', priorityFilter);
-    if (search) query = query.or(`ticket_number.ilike.%${search}%,subject.ilike.%${search}%,customer_email.ilike.%${search}%,customer_name.ilike.%${search}%`);
+      const res = await fetch(`/api/admin/support/tickets?${params}`, { credentials: 'include' });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json.error || 'Failed to load tickets');
 
-    const { data, count } = await query;
-    setTickets(data || []);
-    setTotal(count || 0);
-    setLoading(false);
+      setTickets(json.tickets || []);
+      setTotal(json.total ?? 0);
+    } catch (err: unknown) {
+      console.error(err);
+      setLoadError(err instanceof Error ? err.message : 'Failed to load tickets');
+      setTickets([]);
+      setTotal(0);
+    } finally {
+      setLoading(false);
+    }
   }, [page, statusTab, priorityFilter, search]);
 
   useEffect(() => { fetchTickets(); }, [fetchTickets]);
@@ -81,6 +90,12 @@ export default function TicketsPage() {
           <i className="ri-add-line" /> New Ticket
         </button>
       </div>
+
+      {loadError && (
+        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {loadError}
+        </div>
+      )}
 
       {/* Status Tabs */}
       <div className="flex gap-1 bg-white rounded-xl border border-gray-100 p-1 overflow-x-auto">

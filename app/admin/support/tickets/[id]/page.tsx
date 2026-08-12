@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useCallback, useRef, use } from 'react';
 import Link from 'next/link';
-import { supabase } from '@/lib/supabase';
 import MarkdownMessage from '@/components/MarkdownMessage';
 
 const STATUS_OPTIONS = ['open', 'in_progress', 'waiting_customer', 'resolved', 'closed'];
@@ -13,6 +12,7 @@ export default function TicketDetailPage({ params }: { params: Promise<{ id: str
   const [ticket, setTicket] = useState<any>(null);
   const [messages, setMessages] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [reply, setReply] = useState('');
   const [isInternal, setIsInternal] = useState(false);
   const [sending, setSending] = useState(false);
@@ -21,18 +21,27 @@ export default function TicketDetailPage({ params }: { params: Promise<{ id: str
 
   const fetchTicket = useCallback(async () => {
     setLoading(true);
-    const [ticketRes, msgsRes] = await Promise.all([
-      supabase.from('support_tickets').select('*').eq('id', id).single(),
-      fetch(`/api/support/tickets/${id}/messages`).then(r => r.json()),
-    ]);
-    setTicket(ticketRes.data);
-    setMessages(msgsRes.data || []);
+    setLoadError(null);
+    try {
+      const [ticketRes, msgsRes] = await Promise.all([
+        fetch(`/api/admin/support/tickets/${id}`, { credentials: 'include' }),
+        fetch(`/api/support/tickets/${id}/messages`).then(r => r.json()),
+      ]);
+      const ticketJson = await ticketRes.json().catch(() => ({}));
+      if (!ticketRes.ok) throw new Error(ticketJson.error || 'Failed to load ticket');
 
-    if (ticketRes.data?.conversation_id) {
-      const { data: conv } = await supabase.from('chat_conversations').select('id, session_id, messages, summary, sentiment, customer_name').eq('id', ticketRes.data.conversation_id).single();
-      setConversation(conv);
+      setTicket(ticketJson.ticket ?? null);
+      setConversation(ticketJson.conversation ?? null);
+      setMessages(msgsRes.data || []);
+    } catch (err: unknown) {
+      console.error(err);
+      setLoadError(err instanceof Error ? err.message : 'Failed to load ticket');
+      setTicket(null);
+      setConversation(null);
+      setMessages([]);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }, [id]);
 
   useEffect(() => { fetchTicket(); }, [fetchTicket]);
@@ -73,7 +82,17 @@ export default function TicketDetailPage({ params }: { params: Promise<{ id: str
   }
 
   if (loading) return <div className="flex items-center justify-center h-64"><i className="ri-loader-4-line animate-spin text-3xl text-gray-400" /></div>;
-  if (!ticket) return <div className="text-center p-12"><p className="text-gray-500">Ticket not found</p></div>;
+  if (!ticket) {
+    return (
+      <div className="text-center p-12">
+        {loadError ? (
+          <p className="text-red-600">{loadError}</p>
+        ) : (
+          <p className="text-gray-500">Ticket not found</p>
+        )}
+      </div>
+    );
+  }
 
   const priorityColors: Record<string, string> = { urgent: 'bg-red-100 text-red-700', high: 'bg-orange-100 text-orange-700', medium: 'bg-blue-100 text-blue-700', low: 'bg-gray-100 text-gray-600' };
   const statusColors: Record<string, string> = { open: 'bg-blue-100 text-blue-700', in_progress: 'bg-yellow-100 text-yellow-700', waiting_customer: 'bg-purple-100 text-purple-700', resolved: 'bg-gray-100 text-gray-900', closed: 'bg-gray-200 text-gray-600' };
