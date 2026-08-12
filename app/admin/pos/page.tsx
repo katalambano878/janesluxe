@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import Link from 'next/link';
-import { supabase } from '@/lib/supabase';
+import { useAdminBranch } from '@/context/AdminBranchContext';
+import { fetchWithTimeout, readJsonSafe } from '@/lib/http';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -237,6 +238,8 @@ export default function POSPage() {
     const barcodeBuffer = useRef('');
     const barcodeTimeout = useRef<NodeJS.Timeout | null>(null);
 
+    const { selectedBranch } = useAdminBranch();
+
     const ghanaRegions = [
         'Ahafo', 'Ashanti', 'Bono', 'Bono East', 'Central', 'Eastern',
         'Greater Accra', 'North East', 'Northern', 'Oti', 'Savannah',
@@ -251,17 +254,18 @@ export default function POSPage() {
         try {
             const lr = localStorage.getItem(LAST_RECEIPT_KEY);
             if (lr) setLastReceipt(JSON.parse(lr));
-        } catch {}
+        } catch { /* ignore */ }
 
-        // Load cashier name (session profile — not yet on /api/admin/me)
-        supabase.auth.getSession().then(({ data: { session } }) => {
-            if (session) {
-                supabase.from('profiles').select('full_name').eq('id', session.user.id).single()
-                    .then(({ data }) => { if (data?.full_name) setCashierName(data.full_name); });
-            }
-        });
+        fetchWithTimeout('/api/admin/me', { credentials: 'include', timeoutMs: 10000 })
+            .then(async (res) => {
+                const json = await readJsonSafe<{ user?: { email?: string }; profile?: { full_name?: string } }>(res);
+                const name = json?.profile?.full_name || json?.user?.email;
+                if (name) setCashierName(name);
+            })
+            .catch(() => { /* non-blocking */ });
 
         fetchDailySummary();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only bootstrap
     }, []);
 
     // ─── Keyboard Shortcuts ─────────────────────────────────────────────────
@@ -648,60 +652,50 @@ export default function POSPage() {
                 metadata: { image: item.image, pos_sale: true, discount_pct: item.discount || 0 }
             }));
 
-            const res = await fetch('/api/admin/pos/orders', {
+            // Postgres order_status has no "completed" — use delivered (pickup) / awaiting_payment (MoMo)
+            const orderStatus = isCashOrCard
+                ? (deliveryMethod === 'doorstep' ? 'processing' : 'delivered')
+                : 'awaiting_payment';
+
+            const res = await fetchWithTimeout('/api/admin/pos/orders', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 credentials: 'include',
+                timeoutMs: 30000,
                 body: JSON.stringify({
                     order_number: orderNumber,
                     email: customerEmail,
                     phone: customerPhone,
-                    status: isCashOrCard ? 'completed' : 'pending',
+                    status: orderStatus,
                     payment_status: isCashOrCard ? 'paid' : 'pending',
                     subtotal: cartSubtotal,
                     discount_total: totalDiscount,
                     total: grandTotal,
                     shipping_method: deliveryMethod,
-                    payment_method: paymentMethod === 'momo' ? 'paystack' : paymentMethod,
+                    payment_method: paymentMethod === 'momo' ? 'moolre' : paymentMethod,
                     shipping_address: addressData,
                     billing_address: addressData,
+                    branch_id: selectedBranch?.id || null,
                     metadata: {
                         pos_sale: true,
                         first_name: addressData.firstName,
                         last_name: addressData.lastName,
                         phone: customerPhone,
                         cashier: cashierName || undefined,
+                        branch_name: selectedBranch?.name || undefined,
                     },
                     items: orderItemsPayload,
                     mark_paid: isCashOrCard,
                 }),
             });
 
-            const apiData = await res.json().catch(() => ({}));
+            const apiData = (await readJsonSafe<any>(res)) || {};
             if (!res.ok) throw new Error(apiData.error || 'Failed to create order');
             const order = apiData.order;
             if (!order) throw new Error('No order returned');
 
-            // Upsert Customer
-            const hasRealEmail = customerEmail && customerEmail !== 'pos-walkin@store.local';
-            const upsertEmail = hasRealEmail ? customerEmail
-                : customerPhone ? `${customerPhone.replace(/[^0-9]/g, '')}@pos.local` : null;
-
-            if (upsertEmail) {
-                try {
-                    await supabase.rpc('upsert_customer_from_order', {
-                        p_email: upsertEmail, p_phone: customerPhone || null,
-                        p_full_name: customerName || null,
-                        p_first_name: addressData.firstName || null,
-                        p_last_name: addressData.lastName || null,
-                        p_user_id: null, p_address: addressData
-                    });
-                    supabase.from('customers').select('id, full_name, email, phone').order('full_name').limit(200)
-                        .then(({ data }) => { if (data) setCustomers(data); });
-                } catch (custErr) {
-                    console.error('Customer upsert error:', custErr);
-                }
-            }
+            // Refresh customers + product stock after sale (server already upserted customer)
+            void fetchData();
 
             if (isCashOrCard) {
                 const receiptData = {
@@ -714,20 +708,17 @@ export default function POSPage() {
 
                 setCompletedOrder({ id: order.id, orderNumber, total: grandTotal, items: cart, receiptData });
                 setLastReceipt(receiptData);
-                try { localStorage.setItem(LAST_RECEIPT_KEY, JSON.stringify(receiptData)); } catch {}
+                try { localStorage.setItem(LAST_RECEIPT_KEY, JSON.stringify(receiptData)); } catch { /* ignore */ }
                 setCart([]);
                 setOrderDiscount(0);
                 playSound('success');
                 fetchDailySummary();
 
                 if (customerEmail && customerEmail !== 'pos-walkin@store.local') {
-                    const { data: { session } } = await supabase.auth.getSession();
                     fetch('/api/notifications', {
                         method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            ...(session?.access_token && { 'Authorization': `Bearer ${session.access_token}` })
-                        },
+                        credentials: 'include',
+                        headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
                             type: 'order_created',
                             payload: { ...order, order_number: orderNumber, email: customerEmail, shipping_address: addressData }
@@ -737,12 +728,14 @@ export default function POSPage() {
             }
 
             if (paymentMethod === 'momo') {
-                const paymentRes = await fetch('/api/payment/moolre', {
+                const paymentRes = await fetchWithTimeout('/api/payment/moolre', {
                     method: 'POST',
+                    credentials: 'include',
                     headers: { 'Content-Type': 'application/json' },
+                    timeoutMs: 20000,
                     body: JSON.stringify({ orderId: orderNumber, amount: grandTotal, customerEmail })
                 });
-                const paymentResult = await paymentRes.json();
+                const paymentResult = (await readJsonSafe<any>(paymentRes)) || {};
                 if (!paymentResult.success) throw new Error(paymentResult.message || 'Failed to initiate online payment');
 
                 const receiptData = {
@@ -757,7 +750,7 @@ export default function POSPage() {
                     paymentUrl: paymentResult.url, paymentPending: true, receiptData,
                 });
                 setLastReceipt(receiptData);
-                try { localStorage.setItem(LAST_RECEIPT_KEY, JSON.stringify(receiptData)); } catch {}
+                try { localStorage.setItem(LAST_RECEIPT_KEY, JSON.stringify(receiptData)); } catch { /* ignore */ }
                 setCart([]);
                 setOrderDiscount(0);
                 playSound('success');
