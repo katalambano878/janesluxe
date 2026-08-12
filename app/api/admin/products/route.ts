@@ -25,7 +25,7 @@ export async function GET(request: Request) {
       .select(`
         *,
         categories(name),
-        product_variants(count),
+        product_variants(id),
         product_images(url, position),
         branch_inventory(branch_id, quantity)
       `);
@@ -38,7 +38,10 @@ export async function GET(request: Request) {
 
     const { data, error } = await query;
 
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    if (error) {
+      console.error('[Admin products] query failed:', error.message || error);
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
 
     const products = (data || []).map((p: any) => {
       const images = Array.isArray(p.product_images) ? [...p.product_images] : [];
@@ -46,13 +49,16 @@ export async function GET(request: Request) {
       const firstImageUrl = images.find((img: any) => Number(img.position) === 0)?.url
         || images[0]?.url
         || PLACEHOLDER_IMAGE;
+      const variants = Array.isArray(p.product_variants) ? p.product_variants : [];
 
       return {
         ...p,
         category: p.categories?.name || 'Uncategorized',
         image: firstImageUrl,
         product_images: images,
-        variantsCount: p.product_variants?.[0]?.count || 0,
+        // Plain-Postgres compat does not support PostgREST aggregate embeds like
+        // product_variants(count) — count ids client-side instead.
+        variantsCount: variants.length,
         stock: p.quantity,
         sales: 0,
         rating: p.rating_avg || 0,
@@ -61,6 +67,7 @@ export async function GET(request: Request) {
 
     return NextResponse.json(products);
   } catch (e: any) {
+    console.error('[Admin products] exception:', e?.message || e);
     return NextResponse.json({ error: e?.message || 'Failed to fetch products' }, { status: 500 });
   }
 }

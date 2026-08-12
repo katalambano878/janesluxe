@@ -17,6 +17,7 @@ export default function ProductsPage() {
   const [showFilters, setShowFilters] = useState(false);
   const [products, setProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [categories, setCategories] = useState<any[]>([]);
 
   // Statistics
@@ -48,6 +49,7 @@ export default function ProductsPage() {
   const fetchProducts = async () => {
     try {
       setLoading(true);
+      setLoadError(null);
       const sortParam = sortBy ? `?sortBy=${encodeURIComponent(sortBy)}` : '';
       const res = await fetch(`/api/admin/products${sortParam}`, { credentials: 'include' });
       if (!res.ok) {
@@ -56,29 +58,31 @@ export default function ProductsPage() {
       }
       const data = await res.json();
 
-      if (data) {
-        let list = Array.isArray(data) ? data : [];
+      let list = Array.isArray(data) ? data : [];
 
-        // When a branch is selected, show that branch's stock instead of the global total
-        if (selectedBranch) {
-          list = list.map((p: any) => {
-            const row = (p.branch_inventory || []).find((r: any) => r.branch_id === selectedBranch.id);
-            const branchQty = row?.quantity ?? 0;
-            return { ...p, quantity: branchQty, stock: branchQty };
-          });
-        }
-
-        setProducts(list);
-
-        setStats({
-          total: list.length,
-          lowStock: list.filter((p: any) => p.quantity < (p.metadata?.low_stock_threshold || 5) && p.quantity > 0).length,
-          outOfStock: list.filter((p: any) => p.quantity === 0).length,
-          active: list.filter((p: any) => p.status === 'active').length
+      // When a branch is selected, show that branch's stock instead of the global total.
+      // Missing branch rows fall back to global quantity (legacy products).
+      if (selectedBranch) {
+        list = list.map((p: any) => {
+          const row = (p.branch_inventory || []).find((r: any) => r.branch_id === selectedBranch.id);
+          const branchQty = row ? (Number(row.quantity) || 0) : (Number(p.quantity) || 0);
+          return { ...p, quantity: branchQty, stock: branchQty };
         });
       }
-    } catch (error) {
+
+      setProducts(list);
+
+      setStats({
+        total: list.length,
+        lowStock: list.filter((p: any) => p.quantity < (p.metadata?.low_stock_threshold || 5) && p.quantity > 0).length,
+        outOfStock: list.filter((p: any) => p.quantity === 0).length,
+        active: list.filter((p: any) => p.status === 'active').length
+      });
+    } catch (error: any) {
       console.error('Error fetching products:', error);
+      setProducts([]);
+      setLoadError(error?.message || 'Failed to load products');
+      setStats({ total: 0, lowStock: 0, outOfStock: 0, active: 0 });
     } finally {
       setLoading(false);
     }
@@ -310,9 +314,22 @@ export default function ProductsPage() {
           </div>
         ) : filteredProducts.length === 0 ? (
           <div className="p-12 text-center text-gray-500">
-            <i className="ri-inbox-line text-4xl mb-4 text-gray-300 inline-block"></i>
-            <p className="text-lg">No products found</p>
-            <p className="text-sm text-gray-400 mt-1">Try adjusting your search or filters</p>
+            <i className={`text-4xl mb-4 inline-block ${loadError ? 'ri-error-warning-line text-red-400' : 'ri-inbox-line text-gray-300'}`}></i>
+            <p className={`text-lg ${loadError ? 'text-red-600 font-medium' : ''}`}>
+              {loadError || 'No products found'}
+            </p>
+            <p className="text-sm text-gray-400 mt-1">
+              {loadError ? 'The products API failed. Retry or check the server logs.' : 'Try adjusting your search or filters'}
+            </p>
+            {loadError && (
+              <button
+                type="button"
+                onClick={() => fetchProducts()}
+                className="mt-4 px-4 py-2 bg-gray-900 text-white rounded-lg text-sm font-semibold"
+              >
+                Retry
+              </button>
+            )}
           </div>
         ) : viewMode === 'list' ? (
           <div className="overflow-x-auto">
