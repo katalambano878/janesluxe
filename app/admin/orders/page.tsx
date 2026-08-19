@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useState, useEffect } from 'react';
 import ProductSalesStats from './ProductSalesStats';
 import { useAdminBranch } from '@/context/AdminBranchContext';
+import { getShippingMethodInfo, shippingMethodBadgeClass } from '@/lib/shipping-method';
 
 interface Order {
   id: string;
@@ -43,6 +44,7 @@ export default function AdminOrdersPage() {
   const { selectedBranch, loading: branchLoading } = useAdminBranch();
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [shippingFilter, setShippingFilter] = useState('all');
   const [selectedOrders, setSelectedOrders] = useState<string[]>([]);
   const [showFilters, setShowFilters] = useState(false);
   const [sortBy, setSortBy] = useState('date');
@@ -313,9 +315,16 @@ export default function AdminOrdersPage() {
       customerName.includes(searchQuery.toLowerCase()) ||
       customerEmail.includes(searchQuery.toLowerCase());
     const matchesStatus = statusFilter === 'all' || order.status === statusFilter;
+    const method = String(order.shipping_method || '').toLowerCase();
+    const matchesShipping =
+      shippingFilter === 'all' ||
+      (shippingFilter === 'pickup' && (method === 'pickup' || method === 'store_pickup' || method === 'store-pickup')) ||
+      (shippingFilter === 'delivery' && method && method !== 'pickup' && method !== 'store_pickup' && method !== 'store-pickup') ||
+      (shippingFilter === 'unspecified' && !method) ||
+      method === shippingFilter;
     const matchesProduct = productFilter === 'all' || 
       order.order_items?.some((item: any) => item.product_name === productFilter);
-    return matchesViewTab && matchesSearch && matchesStatus && matchesProduct;
+    return matchesViewTab && matchesSearch && matchesStatus && matchesShipping && matchesProduct;
   });
 
   return (
@@ -478,12 +487,17 @@ export default function AdminOrdersPage() {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Shipping Method</label>
-                <select className="w-full px-3 py-2 pr-8 border-2 border-gray-300 rounded-lg text-sm cursor-pointer">
-                  <option>All Methods</option>
-                  <option>Standard</option>
-                  <option>Express</option>
-                  <option>Store Pickup</option>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Fulfillment</label>
+                <select
+                  value={shippingFilter}
+                  onChange={(e) => setShippingFilter(e.target.value)}
+                  className="w-full px-3 py-2 pr-8 border-2 border-gray-300 rounded-lg text-sm cursor-pointer"
+                >
+                  <option value="all">All methods</option>
+                  <option value="pickup">Store Pickup</option>
+                  <option value="delivery">Delivery (any)</option>
+                  <option value="doorstep">Doorstep Delivery</option>
+                  <option value="unspecified">Not specified</option>
                 </select>
               </div>
             </div>
@@ -543,6 +557,7 @@ export default function AdminOrdersPage() {
                 <th className="text-left py-4 px-4 text-sm font-semibold text-gray-700">Items</th>
                 <th className="text-left py-4 px-4 text-sm font-semibold text-gray-700">Total</th>
                 <th className="text-left py-4 px-4 text-sm font-semibold text-gray-700">Payment</th>
+                <th className="text-left py-4 px-4 text-sm font-semibold text-gray-700">Fulfillment</th>
                 <th className="text-left py-4 px-4 text-sm font-semibold text-gray-700">Status</th>
                 <th className="text-left py-4 px-4 text-sm font-semibold text-gray-700">Actions</th>
               </tr>
@@ -550,14 +565,14 @@ export default function AdminOrdersPage() {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={9} className="py-12 text-center text-gray-500">
+                  <td colSpan={10} className="py-12 text-center text-gray-500">
                     <i className="ri-loader-4-line animate-spin text-3xl text-gray-900"></i>
                     <p className="mt-2">Loading orders...</p>
                   </td>
                 </tr>
               ) : filteredOrders.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="py-12 text-center text-gray-500">
+                  <td colSpan={10} className="py-12 text-center text-gray-500">
                     <i className="ri-inbox-line text-4xl text-gray-300"></i>
                     <p className="mt-2">No orders found</p>
                     <p className="text-sm">Orders will appear here when customers place them</p>
@@ -608,6 +623,20 @@ export default function AdminOrdersPage() {
                           </span>
                         )}
                       </div>
+                    </td>
+                    <td className="py-4 px-4">
+                      {(() => {
+                        const ship = getShippingMethodInfo(order.shipping_method);
+                        return (
+                          <span
+                            className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold border whitespace-nowrap ${shippingMethodBadgeClass(ship.kind)}`}
+                            title={ship.hint}
+                          >
+                            <i className={ship.icon} />
+                            {ship.short}
+                          </span>
+                        );
+                      })()}
                     </td>
                     <td className="py-4 px-4">
                       <span className={`px-3 py-1 rounded-full text-xs font-semibold border whitespace-nowrap ${statusColors[order.status] || 'bg-gray-100 text-gray-700 border-gray-200'}`}>

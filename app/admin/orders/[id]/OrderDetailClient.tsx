@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useState, useEffect } from 'react';
 import FraudDetectionAlert from '@/components/FraudDetectionAlert';
+import { getShippingMethodInfo, shippingMethodBadgeClass } from '@/lib/shipping-method';
 
 interface OrderDetailClientProps {
   orderId: string;
@@ -286,6 +287,8 @@ export default function OrderDetailClient({ orderId }: OrderDetailClientProps) {
   const customerName = (shippingAddress.firstName && shippingAddress.lastName)
     ? `${shippingAddress.firstName.trim()} ${shippingAddress.lastName.trim()}`
     : shippingAddress.full_name || shippingAddress.firstName || order.email?.split('@')[0] || 'Customer';
+  const ship = getShippingMethodInfo(order.shipping_method);
+  const isPickup = ship.kind === 'pickup';
 
   // Derive timeline from status (simplified logic as we don't have full history table joined here yet)
   const timeline = [
@@ -322,14 +325,23 @@ export default function OrderDetailClient({ orderId }: OrderDetailClientProps) {
             </div>
           </div>
 
-          {/* Ship To */}
+          {/* Fulfillment */}
           <div className="mb-6">
-            <h2 className="font-bold text-lg mb-2 bg-gray-200 px-2 py-1">SHIP TO:</h2>
+            <h2 className="font-bold text-lg mb-2 bg-gray-200 px-2 py-1">
+              {isPickup ? 'STORE PICKUP' : 'SHIP TO:'}
+            </h2>
             <div className="pl-2">
+              <p className="font-bold text-base mb-1">{ship.label}</p>
               <p className="font-bold text-lg">{customerName}</p>
               <p>{shippingAddress.phone || order?.phone}</p>
-              <p>{shippingAddress.address || shippingAddress.address_line1}</p>
-              <p>{shippingAddress.city}{(shippingAddress.region || shippingAddress.state) && `, ${shippingAddress.region || shippingAddress.state}`}</p>
+              {isPickup ? (
+                <p className="font-semibold mt-1">Customer will collect from store</p>
+              ) : (
+                <>
+                  <p>{shippingAddress.address || shippingAddress.address_line1}</p>
+                  <p>{shippingAddress.city}{(shippingAddress.region || shippingAddress.state) && `, ${shippingAddress.region || shippingAddress.state}`}</p>
+                </>
+              )}
             </div>
           </div>
 
@@ -373,7 +385,7 @@ export default function OrderDetailClient({ orderId }: OrderDetailClientProps) {
           {/* Order Summary */}
           <div className="flex justify-between mb-6">
             <div>
-              <p><span className="font-semibold">Shipping Method:</span> {order?.shipping_method || 'Standard'}</p>
+              <p><span className="font-semibold">Fulfillment:</span> {ship.label}</p>
               <p><span className="font-semibold">Payment:</span> {order?.payment_method} ({order?.payment_status})</p>
               {trackingNumber && <p><span className="font-semibold">Tracking #:</span> {trackingNumber}</p>}
             </div>
@@ -400,7 +412,16 @@ export default function OrderDetailClient({ orderId }: OrderDetailClientProps) {
               <i className="ri-arrow-left-line text-2xl"></i>
             </Link>
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">{order?.order_number}</h1>
+              <div className="flex flex-wrap items-center gap-2">
+                <h1 className="text-2xl font-bold text-gray-900">{order?.order_number}</h1>
+                <span
+                  className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-semibold border ${shippingMethodBadgeClass(ship.kind)}`}
+                  title={ship.hint}
+                >
+                  <i className={ship.icon} />
+                  {ship.label}
+                </span>
+              </div>
               <p className="text-sm text-gray-600">Order placed on {order ? new Date(order.created_at).toLocaleDateString() : ''}</p>
             </div>
           </div>
@@ -573,19 +594,41 @@ export default function OrderDetailClient({ orderId }: OrderDetailClientProps) {
               </div>
             </div>
 
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-              <h2 className="text-lg font-bold text-gray-900 mb-4">Shipping Address</h2>
-              <div className="text-gray-700 space-y-1">
-                {/* Support both old field names (address_line1) and new (address) */}
-                <p>{shippingAddress.address || shippingAddress.address_line1}</p>
-                {(shippingAddress.address_line2) && <p>{shippingAddress.address_line2}</p>}
-                <p>
-                  {shippingAddress.city}
-                  {(shippingAddress.region || shippingAddress.state) && `, ${shippingAddress.region || shippingAddress.state}`}
-                </p>
-                {shippingAddress.postal_code && <p>{shippingAddress.postal_code}</p>}
-                {shippingAddress.country && <p className="font-semibold">{shippingAddress.country}</p>}
+            <div className={`rounded-xl shadow-sm border p-6 ${isPickup ? 'bg-amber-50 border-amber-200' : 'bg-white border-gray-200'}`}>
+              <h2 className="text-lg font-bold text-gray-900 mb-3">Fulfillment</h2>
+              <div
+                className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-semibold border mb-3 ${shippingMethodBadgeClass(ship.kind)}`}
+              >
+                <i className={ship.icon} />
+                {ship.label}
               </div>
+              <p className="text-sm text-gray-700 mb-4">{ship.hint}</p>
+              {isPickup ? (
+                <div className="text-gray-800 space-y-1 text-sm">
+                  <p className="font-semibold">Hold for customer pickup</p>
+                  <p>Contact: {shippingAddress.phone || order.phone || '—'}</p>
+                  {(shippingAddress.address || shippingAddress.address_line1 || shippingAddress.city) && (
+                    <p className="text-gray-600 pt-2">
+                      Address on file:{' '}
+                      {[shippingAddress.address || shippingAddress.address_line1, shippingAddress.city]
+                        .filter(Boolean)
+                        .join(', ')}
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <div className="text-gray-700 space-y-1">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">Deliver to</p>
+                  <p>{shippingAddress.address || shippingAddress.address_line1}</p>
+                  {shippingAddress.address_line2 && <p>{shippingAddress.address_line2}</p>}
+                  <p>
+                    {shippingAddress.city}
+                    {(shippingAddress.region || shippingAddress.state) && `, ${shippingAddress.region || shippingAddress.state}`}
+                  </p>
+                  {shippingAddress.postal_code && <p>{shippingAddress.postal_code}</p>}
+                  {shippingAddress.country && <p className="font-semibold">{shippingAddress.country}</p>}
+                </div>
+              )}
             </div>
 
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
