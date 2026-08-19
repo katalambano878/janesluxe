@@ -6,6 +6,7 @@ import { usePageTitle } from '@/hooks/usePageTitle';
 import ProductCard, { type ColorVariant, getColorHex } from '@/components/ProductCard';
 import PageHero from '@/components/PageHero';
 import { useBranch } from '@/context/BranchContext';
+import { primaryProductImageUrl } from '@/lib/product-image';
 
 function buildCategorySlugsParam(selectedSlug: string, categories: { id: string; slug: string; parent_id?: string | null }[]): string {
   if (selectedSlug === 'all') return 'all';
@@ -41,18 +42,13 @@ function formatShopProducts(data: any[]) {
         }
       }
     }
-    const images = Array.isArray(p.product_images)
-      ? [...p.product_images].sort(
-          (a: any, b: any) => (Number(a.position) ?? 0) - (Number(b.position) ?? 0)
-        )
-      : [];
     return {
       id: p.id,
       slug: p.slug,
       name: p.name,
       price: p.price,
       originalPrice: p.compare_at_price,
-      image: images[0]?.url || 'https://via.placeholder.com/800x800?text=No+Image',
+      image: primaryProductImageUrl(p.product_images, '/logo.png'),
       rating: p.rating_avg || 0,
       reviewCount: 0,
       badge: p.compare_at_price > p.price ? 'Sale' : undefined,

@@ -18,6 +18,7 @@ import {
   HERO_SLIDES_MOBILE,
   CTA_HERO_IMAGE,
 } from '@/lib/site-config';
+import { primaryProductImageUrl } from '@/lib/product-image';
 
 export default function Home() {
   usePageTitle('');
@@ -163,15 +164,8 @@ export default function Home() {
       };
     });
 
-  const getPrimaryProductImage = (product: any) => {
-    const images = Array.isArray(product?.product_images)
-      ? [...product.product_images]
-      : [];
-    images.sort(
-      (a: any, b: any) => (Number(a?.position) || 0) - (Number(b?.position) || 0)
-    );
-    return images[0]?.url || 'https://via.placeholder.com/400x500';
-  };
+  const getPrimaryProductImage = (product: any) =>
+    primaryProductImageUrl(product?.product_images, '/logo.png');
 
   return (
     <main className="flex-col items-center justify-between min-h-screen bg-brand-cream">

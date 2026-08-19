@@ -1,27 +1,33 @@
-import { readObject } from "@/lib/db/storage";
+import { serveStorageObject } from "@/lib/db/serve-object";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-export async function GET(
-  _req: Request,
-  ctx: { params: Promise<{ bucket: string; path: string[] }> }
-): Promise<Response> {
+type Ctx = { params: Promise<{ bucket: string; path: string[] }> };
+
+async function handle(req: Request, ctx: Ctx): Promise<Response> {
   const { bucket, path } = await ctx.params;
   const objectPath = path.map(decodeURIComponent).join("/");
-  const obj = await readObject(bucket, objectPath);
-  if (!obj) {
-    return new Response(JSON.stringify({ error: "Object not found" }), {
-      status: 404,
-      headers: { "Content-Type": "application/json" },
-    });
-  }
-  return new Response(new Uint8Array(obj.bytes), {
-    status: 200,
+  return serveStorageObject(req, bucket, objectPath);
+}
+
+export async function GET(req: Request, ctx: Ctx) {
+  return handle(req, ctx);
+}
+
+export async function HEAD(req: Request, ctx: Ctx) {
+  return handle(req, ctx);
+}
+
+export async function OPTIONS() {
+  return new Response(null, {
+    status: 204,
     headers: {
-      "Content-Type": obj.contentType,
-      "Cache-Control": "public, max-age=86400, immutable",
       "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": "GET,HEAD,OPTIONS",
+      "Access-Control-Allow-Headers": "range, content-type, apikey, authorization",
+      "Access-Control-Expose-Headers":
+        "Accept-Ranges, Content-Range, Content-Length, Content-Type",
     },
   });
 }

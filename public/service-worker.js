@@ -1,5 +1,5 @@
 // YOUR_BRAND_NAME - Service Worker v3.0
-const CACHE_VERSION = 'sl-v3.2-janes-luxe-logo';
+const CACHE_VERSION = 'sl-v3.3-janes-luxe-images';
 const STATIC_CACHE = `static-${CACHE_VERSION}`;
 const DYNAMIC_CACHE = `dynamic-${CACHE_VERSION}`;
 const IMAGE_CACHE = `images-${CACHE_VERSION}`;

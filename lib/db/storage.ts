@@ -5,8 +5,9 @@
 // `supabase.storage.from(bucket).upload()/createSignedUrl()/getPublicUrl()`.
 
 import { createHmac } from "crypto";
-import { promises as fs } from "fs";
+import { createReadStream, promises as fs, type ReadStream } from "fs";
 import path from "path";
+import { optimizeImageBuffer } from "@/lib/optimize-image";
 
 const STORAGE_ROOT =
   process.env.STORAGE_ROOT || path.join(process.cwd(), ".storage");
@@ -77,7 +78,7 @@ export async function readObject(
   }
 }
 
-function guessContentType(p: string): string {
+export function guessContentType(p: string): string {
   const ext = p.toLowerCase().split(".").pop() || "";
   const map: Record<string, string> = {
     jpg: "image/jpeg",
@@ -86,8 +87,48 @@ function guessContentType(p: string): string {
     webp: "image/webp",
     gif: "image/gif",
     pdf: "application/pdf",
+    mp4: "video/mp4",
+    mov: "video/quicktime",
+    webm: "video/webm",
+    m4v: "video/mp4",
   };
   return map[ext] || "application/octet-stream";
+}
+
+async function resolveContentType(fullPath: string, objectPath: string): Promise<string> {
+  try {
+    const meta = JSON.parse(await fs.readFile(fullPath + ".meta.json", "utf8"));
+    if (meta.contentType) return meta.contentType;
+  } catch {
+    /* no sidecar */
+  }
+  return guessContentType(objectPath);
+}
+
+export async function statObject(
+  bucket: string,
+  objectPath: string
+): Promise<{ fullPath: string; size: number; contentType: string } | null> {
+  try {
+    const fullPath = safeJoin(bucket, objectPath);
+    const st = await fs.stat(fullPath);
+    if (!st.isFile()) return null;
+    return {
+      fullPath,
+      size: st.size,
+      contentType: await resolveContentType(fullPath, objectPath),
+    };
+  } catch {
+    return null;
+  }
+}
+
+export function openObjectStream(
+  fullPath: string,
+  range?: { start: number; end: number }
+): ReadStream {
+  if (range) return createReadStream(fullPath, { start: range.start, end: range.end });
+  return createReadStream(fullPath);
 }
 
 interface BucketApi {
@@ -125,11 +166,14 @@ export function createStorageClient(): StorageClient {
             } else {
               buf = Buffer.from(data as any);
             }
+            const optimized = await optimizeImageBuffer(buf, objectPath, opts?.contentType);
+            buf = optimized.buffer;
+            const contentType = optimized.contentType || opts?.contentType;
             await fs.writeFile(full, buf);
-            if (opts?.contentType) {
+            if (contentType) {
               await fs.writeFile(
                 full + ".meta.json",
-                JSON.stringify({ contentType: opts.contentType })
+                JSON.stringify({ contentType })
               );
             }
             return { data: { path: objectPath }, error: null };
