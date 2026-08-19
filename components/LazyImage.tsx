@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import Image from 'next/image';
 
 interface LazyImageProps {
   src: string;
@@ -14,6 +13,11 @@ interface LazyImageProps {
   sizes?: string;
 }
 
+/**
+ * Reliable product image loader.
+ * Uses a plain <img> for absolute storage URLs so mobile browsers / PWAs
+ * are not blocked by next/image optimizer quirks.
+ */
 export default function LazyImage({
   src,
   alt,
@@ -22,49 +26,65 @@ export default function LazyImage({
   height,
   priority = false,
   onLoad,
-  sizes = '(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw'
 }: LazyImageProps) {
   const [isLoaded, setIsLoaded] = useState(false);
   const [hasError, setHasError] = useState(false);
+  const [retryKey, setRetryKey] = useState(0);
 
   const handleLoad = () => {
     setIsLoaded(true);
+    setHasError(false);
     onLoad?.();
   };
 
   const handleError = () => {
+    // One automatic cache-bust retry (helps after SW / CDN stale misses)
+    if (retryKey === 0 && src) {
+      setRetryKey(1);
+      setIsLoaded(false);
+      return;
+    }
     setHasError(true);
     setIsLoaded(true);
     onLoad?.();
   };
 
-  // Fallback for invalid/empty URLs
   if (!src || hasError) {
     return (
-      <div className={`relative overflow-hidden bg-gray-200 flex items-center justify-center ${className}`} style={{ width, height }}>
+      <div
+        className={`relative overflow-hidden bg-brand-cream/40 flex items-center justify-center ${className}`}
+        style={{ width, height }}
+      >
         <span className="text-gray-400 text-xs">No Image</span>
       </div>
     );
   }
 
-  // Use unoptimized for external URLs (Supabase storage, placeholders) so they always load
-  const isExternal = /^https?:\/\//.test(src);
+  const displaySrc =
+    retryKey > 0
+      ? `${src}${src.includes('?') ? '&' : '?'}_r=${retryKey}`
+      : src;
+
   return (
     <div className={`relative overflow-hidden ${className}`} style={{ width, height }}>
       {!isLoaded && (
-        <div className="absolute inset-0 bg-gray-200 animate-pulse z-10"></div>
+        <div className="absolute inset-0 bg-gray-200 animate-pulse z-10" />
       )}
-      <Image
-        src={src}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        key={retryKey}
+        src={displaySrc}
         alt={alt}
-        fill
-        sizes={sizes}
-        className={`object-cover transition-opacity duration-300 ${isLoaded ? 'opacity-100' : 'opacity-0'}`}
+        width={width}
+        height={height}
+        loading={priority ? 'eager' : 'lazy'}
+        decoding="async"
+        fetchPriority={priority ? 'high' : 'auto'}
+        className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-300 ${
+          isLoaded ? 'opacity-100' : 'opacity-0'
+        }`}
         onLoad={handleLoad}
         onError={handleError}
-        priority={priority}
-        quality={75}
-        unoptimized={isExternal}
       />
     </div>
   );

@@ -357,9 +357,9 @@ export default function ProductForm({ initialData, isEditMode = false }: Product
                 const fileExt = file.name.split('.').pop()?.toLowerCase() || '';
                 const isVideo = ['mp4', 'mov', 'webm'].includes(fileExt);
 
-                const maxSize = isVideo ? 100 * 1024 * 1024 : 5 * 1024 * 1024;
+                const maxSize = isVideo ? 100 * 1024 * 1024 : 20 * 1024 * 1024;
                 if (file.size > maxSize) {
-                    alert(`"${file.name}" is too large. Max: ${isVideo ? '100MB for videos' : '5MB for images'}`);
+                    alert(`"${file.name}" is too large. Max: ${isVideo ? '100MB for videos' : '20MB for images (auto-compressed on upload)'}`);
                     setUploadProgress(prev => prev.map((p, idx) => idx === i ? { ...p, done: true } : p));
                     continue;
                 }
@@ -1423,7 +1423,7 @@ export default function ProductForm({ initialData, isEditMode = false }: Product
                                 <p className="text-sm text-blue-800">
                                     Tap <strong>Choose from Gallery</strong> → your Files app opens → tap <strong>Select</strong> (top-right) → tap all the photos you want → tap <strong>Open</strong>. All selected photos upload at once.
                                 </p>
-                                <p className="text-xs text-blue-700 mt-1">Images: JPG, PNG, WebP, HEIC (max 5MB each) · Videos: MP4, MOV, WebM (max 100MB each)</p>
+                                <p className="text-xs text-blue-700 mt-1">Images: JPG, PNG, WebP, HEIC (max 20MB each — auto-compressed) · Videos: MP4, MOV, WebM (max 100MB each)</p>
                             </div>
                         </div>
                     )}

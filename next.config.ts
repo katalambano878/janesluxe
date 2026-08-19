@@ -12,9 +12,11 @@ const nextConfig: NextConfig = {
   env: publicEnv,
   experimental: {
     serverActions: {
-      bodySizeLimit: '10mb',
+      bodySizeLimit: '25mb',
     },
   },
+  // Allow larger admin image uploads (compressed server-side)
+  // Next.js App Router request body defaults are generous for route handlers via formData.
   images: {
     unoptimized: true,
     minimumCacheTTL: 2592000,

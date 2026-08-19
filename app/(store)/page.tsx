@@ -2,13 +2,13 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import Image from 'next/image';
 import { useCMS } from '@/context/CMSContext';
 import { useBranch } from '@/context/BranchContext';
 import ProductCard, {
   type ColorVariant,
   getColorHex,
 } from '@/components/ProductCard';
+import LazyImage from '@/components/LazyImage';
 import AnimatedSection, { AnimatedGrid } from '@/components/AnimatedSection';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import HeroImage from '@/components/HeroImage';
@@ -258,11 +258,10 @@ export default function Home() {
                 >
                   {item.imageUrl ? (
                     <>
-                      <Image
+                      <LazyImage
                         src={item.imageUrl}
                         alt={item.name}
-                        fill
-                        className="object-cover transition-transform duration-700 group-hover:scale-110"
+                        className="absolute inset-0 h-full w-full object-cover transition-transform duration-700 group-hover:scale-110"
                       />
                       <div className="absolute inset-0 bg-gradient-to-t from-brand-text/70 via-brand-text/10 to-transparent group-hover:from-brand-text/80 transition-colors duration-500" />
                     </>
@@ -411,11 +410,10 @@ export default function Home() {
                     className="min-w-[180px] sm:min-w-[220px] max-w-[260px] w-[var(--card-width)] flex-shrink-0 rounded-xl sm:rounded-2xl bg-white shadow-sm hover:shadow-md transition-shadow"
                   >
                     <div className="relative aspect-[4/5] rounded-xl sm:rounded-2xl overflow-hidden bg-brand-carton/10">
-                      <Image
+                      <LazyImage
                         src={getPrimaryProductImage(product)}
                         alt={product.name}
-                        fill
-                        className="object-cover"
+                        className="h-full w-full object-cover"
                       />
                     </div>
                     <div className="p-3">
@@ -516,11 +514,10 @@ export default function Home() {
                 href={`/product/${product.slug}`}
                 className="group relative aspect-square overflow-hidden rounded-2xl bg-brand-secondary/40"
               >
-                <Image
+                <LazyImage
                   src={getPrimaryProductImage(product)}
                   alt={product.name}
-                  fill
-                  className="object-cover transition-transform duration-500 group-hover:scale-105"
+                  className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-brand-text/25 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
               </Link>
