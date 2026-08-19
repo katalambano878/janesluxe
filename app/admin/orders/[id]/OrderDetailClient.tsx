@@ -444,6 +444,39 @@ export default function OrderDetailClient({ orderId }: OrderDetailClientProps) {
               />
             )}
 
+            <div
+              className={`rounded-xl border-2 p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 ${
+                isPickup
+                  ? 'bg-amber-50 border-amber-400'
+                  : ship.kind === 'delivery'
+                    ? 'bg-blue-50 border-blue-400'
+                    : 'bg-gray-50 border-gray-300'
+              }`}
+            >
+              <div className="flex items-start gap-3">
+                <div
+                  className={`w-12 h-12 flex items-center justify-center rounded-full text-2xl ${
+                    isPickup ? 'bg-amber-200 text-amber-900' : 'bg-blue-200 text-blue-900'
+                  }`}
+                >
+                  <i className={ship.icon} />
+                </div>
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-gray-600">
+                    Customer chose
+                  </p>
+                  <p className="text-2xl font-bold text-gray-900 leading-tight">{ship.label}</p>
+                  <p className="text-sm text-gray-700 mt-1">{ship.hint}</p>
+                </div>
+              </div>
+              <span
+                className={`inline-flex self-start sm:self-center items-center gap-1 px-4 py-2 rounded-full text-sm font-bold border ${shippingMethodBadgeClass(ship.kind)}`}
+              >
+                <i className={ship.icon} />
+                {ship.short}
+              </span>
+            </div>
+
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
               <div className="flex items-center justify-between mb-6">
                 <h2 className="text-xl font-bold text-gray-900">Order Items</h2>
@@ -483,7 +516,7 @@ export default function OrderDetailClient({ orderId }: OrderDetailClientProps) {
                   <span>GH₵ {order.subtotal?.toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between text-gray-700">
-                  <span>Shipping</span>
+                  <span>Shipping ({ship.short})</span>
                   <span>GH₵ {order.shipping_total?.toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between text-gray-700">
