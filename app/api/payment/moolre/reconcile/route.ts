@@ -133,9 +133,18 @@ export async function POST(req: Request) {
         });
     }
 
-    // Amount safety check.
+    // Amount safety check — require a known matching amount (except dry-run inspection).
     const matchedAmount = txAmount(match);
-    if (!Number.isNaN(matchedAmount) && Math.abs(matchedAmount - expected) > 0.01) {
+    if (Number.isNaN(matchedAmount)) {
+        return NextResponse.json({
+            success: false,
+            matched: true,
+            amountMismatch: true,
+            message: 'Matched transaction has no amount; refusing to mark paid.',
+            transaction: match,
+        }, { status: 400 });
+    }
+    if (Math.abs(matchedAmount - expected) > 0.01) {
         return NextResponse.json({
             success: false,
             matched: true,

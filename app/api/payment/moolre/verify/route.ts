@@ -103,9 +103,12 @@ export async function POST(req: Request) {
                 if (m) {
                     const amt = Number(m.amount !== undefined ? m.amount : m.value);
                     const expected = Number(order.total);
-                    if (Number.isNaN(amt) || Math.abs(amt - expected) <= 0.01) {
+                    // Require a real amount that matches the order total.
+                    if (!Number.isNaN(amt) && Math.abs(amt - expected) <= 0.01) {
                         verified = { paid: true, authError: false, amount: amt, transactionId: m.transactionid, paidAt: m.ts };
                         verifiedRef = m.externalref && m.externalref !== '0' ? m.externalref : orderNumber;
+                    } else {
+                        console.error('[Moolre Verify] list-match rejected — amount missing or mismatch. Expected:', expected, 'Got:', amt, 'ref:', m.externalref);
                     }
                 }
             }

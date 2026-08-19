@@ -111,11 +111,18 @@ export async function POST(req: Request) {
             return NextResponse.json({ success: true, message: 'Order already processed' });
         }
 
-        // SECURITY: reject when the paid amount doesn't match the order total.
-        if (confirmedAmount !== undefined && !Number.isNaN(confirmedAmount)) {
+        // SECURITY: require a confirmed amount that matches the order total.
+        // Never mark paid when amount is unknown — prevents under/over-pay marking.
+        if (confirmedAmount === undefined || Number.isNaN(confirmedAmount)) {
+            console.error('[Moolre Callback] Missing confirmed amount — REJECTING', merchantOrderRef);
+            if (eventRec.id) await markPaymentWebhookProcessed(eventRec.id, 'failed', 'missing confirmed amount');
+            return NextResponse.json({ success: false, message: 'Payment amount could not be verified' }, { status: 400 });
+        }
+        {
             const expected = Number(existingOrder.total);
             if (Math.abs(confirmedAmount - expected) > 0.01) {
                 console.error('[Moolre Callback] AMOUNT MISMATCH — REJECTING! Expected:', expected, 'Got:', confirmedAmount);
+                if (eventRec.id) await markPaymentWebhookProcessed(eventRec.id, 'failed', `amount mismatch expected=${expected} got=${confirmedAmount}`);
                 return NextResponse.json({ success: false, message: 'Payment amount does not match order total' }, { status: 400 });
             }
         }
