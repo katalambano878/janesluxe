@@ -24,7 +24,10 @@ function formatShopProducts(data: any[]) {
     const variants = p.product_variants || [];
     const hasVariants = variants.length > 0;
     const minVariantPrice = hasVariants
-      ? Math.min(...variants.map((v: any) => v.price || p.price))
+      ? Math.min(
+          Number(p.price) || Infinity,
+          ...variants.map((v: any) => Number(v.price) || Number(p.price) || Infinity)
+        )
       : undefined;
     const totalVariantStock = hasVariants
       ? variants.reduce((sum: number, v: any) => sum + (v.quantity || 0), 0)
@@ -81,7 +84,7 @@ function ShopContent() {
   const [sortBy, setSortBy] = useState('popular');
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [page, setPage] = useState(1);
-  const productsPerPage = 9;
+  const productsPerPage = 24;
 
   // Initialize from URL params
   useEffect(() => {

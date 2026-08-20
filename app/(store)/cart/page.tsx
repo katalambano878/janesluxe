@@ -54,7 +54,9 @@ export default function CartPage() {
     }
   }
 
-  const shipping = subtotal >= 200 ? 0 : 15;
+  // Shipping is not charged at checkout — admin confirms delivery fee after the order
+  // (pickup is free; doorstep fee is agreed separately). Do not hardcode GH₵15 here.
+  const shipping = 0;
   const total = subtotal - couponDiscount + shipping;
 
   return (
@@ -217,14 +219,11 @@ export default function CartPage() {
 
                       <div className="flex justify-between text-gray-700">
                         <span>Shipping</span>
-                        <span className="font-semibold">{shipping === 0 ? 'FREE' : `GH₵${shipping.toFixed(2)}`}</span>
+                        <span className="font-semibold text-right text-sm">Confirmed after order</span>
                       </div>
-
-                      {shipping > 0 && (
-                        <p className="text-sm text-[#AB9462]">
-                          {/* Shipping threshold text removed */}
-                        </p>
-                      )}
+                      <p className="text-xs text-gray-500">
+                        Store pickup is free. For delivery, our team confirms the fee with you after you order.
+                      </p>
                     </div>
 
                     <div className="border-t border-gray-200 pt-4 mb-6">

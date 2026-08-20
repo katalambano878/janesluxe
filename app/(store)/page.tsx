@@ -45,8 +45,8 @@ export default function Home() {
         // Use storefront APIs (service-role backed on server) so admin-created
         // records always show publicly even if client-side RLS is strict.
         const [featuredProductsRes, allProductsRes, categoriesRes] = await Promise.all([
-          fetch(`/api/storefront/products?featured=true&limit=12${branchQuery}`, { cache: 'no-store' }),
-          fetch(`/api/storefront/products?limit=12${branchQuery}`, { cache: 'no-store' }),
+          fetch(`/api/storefront/products?featured=true&limit=50${branchQuery}`, { cache: 'no-store' }),
+          fetch(`/api/storefront/products?limit=50${branchQuery}`, { cache: 'no-store' }),
           fetch('/api/storefront/categories', { cache: 'no-store' }),
         ]);
 
@@ -137,7 +137,7 @@ export default function Home() {
     );
   };
 
-  const popularProducts = featuredProducts.slice(0, 6);
+  const popularProducts = featuredProducts;
   const latestProducts = featuredProducts;
   const defaultCategoryStyles = [
     {
@@ -325,7 +325,8 @@ export default function Home() {
                 const hasVariants = variants.length > 0;
                 const minVariantPrice = hasVariants
                   ? Math.min(
-                      ...variants.map((v: any) => v.price || product.price)
+                      Number(product.price) || Infinity,
+                      ...variants.map((v: any) => Number(v.price) || Number(product.price) || Infinity)
                     )
                   : undefined;
                 const totalVariantStock = hasVariants

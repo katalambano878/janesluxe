@@ -746,7 +746,15 @@ export default function ProductForm({ initialData, isEditMode = false }: Product
                                         <input
                                             type="number"
                                             value={price}
-                                            onChange={(e) => setPrice(e.target.value)}
+                                            onChange={(e) => {
+                                                const next = e.target.value;
+                                                setPrice(next);
+                                                // Keep size/color variant prices in sync with the product price
+                                                // so the storefront "From" price matches what admin set.
+                                                if (next !== '' && !Number.isNaN(parseFloat(next))) {
+                                                    bulkSetField('price', next);
+                                                }
+                                            }}
                                             className="w-full pl-16 pr-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-600 focus:border-gray-600"
                                             step="0.01"
                                             placeholder="0.00"
