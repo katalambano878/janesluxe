@@ -53,8 +53,7 @@ export default function AdminOrdersPage() {
   const [orderViewTab, setOrderViewTab] = useState<'confirmed' | 'abandoned'>('confirmed');
   const [sendingPaymentLink, setSendingPaymentLink] = useState<string | null>(null);
   const [orderStats, setOrderStats] = useState<OrderStats[]>([
-    { label: 'All Orders', count: 0, status: 'all' },
-    { label: 'Awaiting Payment', count: 0, status: 'pending' },
+    { label: 'All Confirmed', count: 0, status: 'all' },
     { label: 'Processing', count: 0, status: 'processing' },
     { label: 'Packaged', count: 0, status: 'shipped' },
     { label: 'Dispatched To Rider', count: 0, status: 'dispatched_to_rider' },
@@ -94,23 +93,22 @@ export default function AdminOrdersPage() {
       });
       setAvailableProducts(Array.from(productNames).sort());
 
-      // Every order a customer placed is a real order. The "Awaiting Payment"
-      // tab isolates the unpaid subset for payment follow-up.
+      // Confirmed = payment received. Abandoned cart = checkout started, unpaid.
       const allOrders = ordersData || [];
+      const paidOrders = allOrders.filter((o: any) => o.payment_status === 'paid');
       const unpaidOrders = allOrders.filter((o: any) => o.payment_status !== 'paid');
 
-      setConfirmedCount(allOrders.length);
+      setConfirmedCount(paidOrders.length);
       setAbandonedCount(unpaidOrders.length);
 
-      // Stats reflect every order customers have placed (paid or not)
+      // Status cards only count paid (confirmed) orders
       const stats = [
-        { label: 'All Orders', count: allOrders.length, status: 'all' },
-        { label: 'Awaiting Payment', count: allOrders.filter((o: any) => o.status === 'pending' && o.payment_status !== 'paid').length, status: 'pending' },
-        { label: 'Processing', count: allOrders.filter((o: any) => o.status === 'processing').length, status: 'processing' },
-        { label: 'Packaged', count: allOrders.filter((o: any) => o.status === 'shipped').length, status: 'shipped' },
-        { label: 'Dispatched To Rider', count: allOrders.filter((o: any) => o.status === 'dispatched_to_rider').length, status: 'dispatched_to_rider' },
-        { label: 'Delivered', count: allOrders.filter((o: any) => o.status === 'delivered').length, status: 'delivered' },
-        { label: 'Cancelled', count: allOrders.filter((o: any) => o.status === 'cancelled').length, status: 'cancelled' }
+        { label: 'All Confirmed', count: paidOrders.length, status: 'all' },
+        { label: 'Processing', count: paidOrders.filter((o: any) => o.status === 'processing').length, status: 'processing' },
+        { label: 'Packaged', count: paidOrders.filter((o: any) => o.status === 'shipped').length, status: 'shipped' },
+        { label: 'Dispatched To Rider', count: paidOrders.filter((o: any) => o.status === 'dispatched_to_rider').length, status: 'dispatched_to_rider' },
+        { label: 'Delivered', count: paidOrders.filter((o: any) => o.status === 'delivered').length, status: 'delivered' },
+        { label: 'Cancelled', count: paidOrders.filter((o: any) => o.status === 'cancelled').length, status: 'cancelled' }
       ];
       setOrderStats(stats);
 
@@ -313,8 +311,11 @@ export default function AdminOrdersPage() {
     const customerEmail = getCustomerEmail(order).toLowerCase();
     const orderId = (order.order_number || order.id).toLowerCase();
 
-    // Main tab ("All Orders") shows every order; second tab isolates unpaid ones.
-    const matchesViewTab = orderViewTab === 'confirmed' ? true : order.payment_status !== 'paid';
+    // Confirmed = paid only. Abandoned cart = unpaid checkout attempts.
+    const matchesViewTab =
+      orderViewTab === 'confirmed'
+        ? order.payment_status === 'paid'
+        : order.payment_status !== 'paid';
 
     const matchesSearch = orderId.includes(searchQuery.toLowerCase()) ||
       customerName.includes(searchQuery.toLowerCase()) ||
@@ -348,7 +349,7 @@ export default function AdminOrdersPage() {
           <p className="text-gray-600 mt-1">
             {selectedBranch
               ? `Orders placed at ${selectedBranch.name}`
-              : 'Manage and track all customer orders'}
+              : 'Confirmed (paid) orders and abandoned checkouts, separated'}
           </p>
         </div>
         <div className="flex items-center gap-3 w-full md:w-auto">
@@ -369,10 +370,10 @@ export default function AdminOrdersPage() {
         </div>
       </div>
 
-      {/* View Tabs: Confirmed Orders vs Abandoned Carts */}
+      {/* View Tabs: Confirmed Orders vs Abandoned Cart */}
       <div className="flex border-b border-gray-200">
         <button
-          onClick={() => { setOrderViewTab('confirmed'); setStatusFilter('all'); }}
+          onClick={() => { setOrderViewTab('confirmed'); setStatusFilter('all'); setSelectedOrders([]); }}
           className={`px-6 py-3 font-semibold text-sm border-b-2 transition-colors cursor-pointer ${
             orderViewTab === 'confirmed'
               ? 'border-gray-900 text-gray-900'
@@ -380,10 +381,10 @@ export default function AdminOrdersPage() {
           }`}
         >
           <i className="ri-check-double-line mr-2"></i>
-          All Orders ({confirmedCount})
+          Confirmed Orders ({confirmedCount})
         </button>
         <button
-          onClick={() => { setOrderViewTab('abandoned'); setStatusFilter('all'); }}
+          onClick={() => { setOrderViewTab('abandoned'); setStatusFilter('all'); setSelectedOrders([]); }}
           className={`px-6 py-3 font-semibold text-sm border-b-2 transition-colors cursor-pointer ${
             orderViewTab === 'abandoned'
               ? 'border-amber-600 text-amber-600'
@@ -391,37 +392,49 @@ export default function AdminOrdersPage() {
           }`}
         >
           <i className="ri-shopping-cart-2-line mr-2"></i>
-          Awaiting Payment ({abandonedCount})
+          Abandoned Cart ({abandonedCount})
         </button>
       </div>
 
       {orderViewTab === 'confirmed' && (
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-        {orderStats.map((stat) => (
-          <button
-            key={stat.status}
-            onClick={() => setStatusFilter(stat.status)}
-            className={`p-4 rounded-xl border-2 transition-all text-left cursor-pointer ${statusFilter === stat.status
-              ? 'border-gray-900 bg-gray-50'
-              : 'border-gray-200 bg-white hover:border-gray-300'
-              }`}
-          >
-            <p className="text-2xl font-bold text-gray-900">{stat.count}</p>
-            <p className="text-sm text-gray-600 mt-1">{stat.label}</p>
-          </button>
-        ))}
-      </div>
+        <>
+          <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4">
+            <div className="flex items-start space-x-3">
+              <i className="ri-checkbox-circle-line text-xl text-emerald-600 mt-0.5"></i>
+              <div>
+                <p className="text-sm font-semibold text-emerald-800">Confirmed Orders</p>
+                <p className="text-sm text-emerald-700 mt-1">
+                  Payment received. These are real orders to fulfill — process, package, and deliver from here.
+                </p>
+              </div>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+            {orderStats.map((stat) => (
+              <button
+                key={stat.status}
+                onClick={() => setStatusFilter(stat.status)}
+                className={`p-4 rounded-xl border-2 transition-all text-left cursor-pointer ${statusFilter === stat.status
+                  ? 'border-gray-900 bg-gray-50'
+                  : 'border-gray-200 bg-white hover:border-gray-300'
+                  }`}
+              >
+                <p className="text-2xl font-bold text-gray-900">{stat.count}</p>
+                <p className="text-sm text-gray-600 mt-1">{stat.label}</p>
+              </button>
+            ))}
+          </div>
+        </>
       )}
 
-      {/* Abandoned carts info banner */}
-      {orderViewTab === 'abandoned' && abandonedCount > 0 && (
+      {orderViewTab === 'abandoned' && (
         <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
           <div className="flex items-start space-x-3">
             <i className="ri-information-line text-xl text-amber-600 mt-0.5"></i>
             <div>
-              <p className="text-sm font-semibold text-amber-800">Awaiting Payment</p>
+              <p className="text-sm font-semibold text-amber-800">Abandoned Cart</p>
               <p className="text-sm text-amber-700 mt-1">
-                These orders were placed but payment hasn't been confirmed yet. You can resend payment links, or open an order and mark it as paid once payment is received.
+                Checkout started but payment was never completed. These are not confirmed orders — do not fulfill them unless you mark payment as received. You can resend a payment link from the actions column.
               </p>
             </div>
           </div>
@@ -578,9 +591,15 @@ export default function AdminOrdersPage() {
               ) : filteredOrders.length === 0 ? (
                 <tr>
                   <td colSpan={10} className="py-12 text-center text-gray-500">
-                    <i className="ri-inbox-line text-4xl text-gray-300"></i>
-                    <p className="mt-2">No orders found</p>
-                    <p className="text-sm">Orders will appear here when customers place them</p>
+                    <i className={`${orderViewTab === 'abandoned' ? 'ri-shopping-cart-2-line' : 'ri-inbox-line'} text-4xl text-gray-300`}></i>
+                    <p className="mt-2">
+                      {orderViewTab === 'confirmed' ? 'No confirmed orders found' : 'No abandoned carts found'}
+                    </p>
+                    <p className="text-sm">
+                      {orderViewTab === 'confirmed'
+                        ? 'Paid orders will appear here after payment succeeds'
+                        : 'Unpaid checkouts will appear here when customers abandon payment'}
+                    </p>
                   </td>
                 </tr>
               ) : (
@@ -699,7 +718,11 @@ export default function AdminOrdersPage() {
 
         {filteredOrders.length > 0 && (
           <div className="p-6 border-t border-gray-200 flex items-center justify-between">
-            <p className="text-gray-600">Showing {filteredOrders.length} of {orders.length} orders</p>
+            <p className="text-gray-600">
+              Showing {filteredOrders.length} of{' '}
+              {orderViewTab === 'confirmed' ? confirmedCount : abandonedCount}{' '}
+              {orderViewTab === 'confirmed' ? 'confirmed orders' : 'abandoned carts'}
+            </p>
           </div>
         )}
       </div>
