@@ -54,7 +54,7 @@ export default function AdminOrdersPage() {
   const [sendingPaymentLink, setSendingPaymentLink] = useState<string | null>(null);
   const [orderStats, setOrderStats] = useState<OrderStats[]>([
     { label: 'All Orders', count: 0, status: 'all' },
-    { label: 'Pending', count: 0, status: 'pending' },
+    { label: 'Awaiting Payment', count: 0, status: 'pending' },
     { label: 'Processing', count: 0, status: 'processing' },
     { label: 'Packaged', count: 0, status: 'shipped' },
     { label: 'Dispatched To Rider', count: 0, status: 'dispatched_to_rider' },
@@ -105,7 +105,7 @@ export default function AdminOrdersPage() {
       // Stats reflect every order customers have placed (paid or not)
       const stats = [
         { label: 'All Orders', count: allOrders.length, status: 'all' },
-        { label: 'Pending', count: allOrders.filter((o: any) => o.status === 'pending').length, status: 'pending' },
+        { label: 'Awaiting Payment', count: allOrders.filter((o: any) => o.status === 'pending' && o.payment_status !== 'paid').length, status: 'pending' },
         { label: 'Processing', count: allOrders.filter((o: any) => o.status === 'processing').length, status: 'processing' },
         { label: 'Packaged', count: allOrders.filter((o: any) => o.status === 'shipped').length, status: 'shipped' },
         { label: 'Dispatched To Rider', count: allOrders.filter((o: any) => o.status === 'dispatched_to_rider').length, status: 'dispatched_to_rider' },
@@ -131,7 +131,12 @@ export default function AdminOrdersPage() {
     'awaiting_payment': 'bg-gray-100 text-gray-700 border-gray-200'
   };
 
-  const formatStatus = (status: string) => {
+  const formatStatus = (status: string, paymentStatus?: string) => {
+    // Unpaid checkout attempts stay status=pending until Moolre confirms payment.
+    // Label them clearly so staff don't treat them as confirmed orders.
+    if ((status === 'pending' || status === 'awaiting_payment') && paymentStatus && paymentStatus !== 'paid') {
+      return 'Awaiting Payment';
+    }
     if (status === 'shipped') return 'Packaged';
     if (status === 'dispatched_to_rider') return 'Dispatched To Rider';
     return status ? status.charAt(0).toUpperCase() + status.slice(1) : 'Unknown';
@@ -615,13 +620,23 @@ export default function AdminOrdersPage() {
                     <td className="py-4 px-4 text-gray-700">{getItemCount(order)}</td>
                     <td className="py-4 px-4 font-semibold text-gray-900 whitespace-nowrap">GH₵ {order.total?.toFixed(2) || '0.00'}</td>
                     <td className="py-4 px-4 text-sm whitespace-nowrap">
-                      <div className="flex flex-col">
-                        <span className="text-gray-700">{order.payment_method || 'N/A'}</span>
-                        {orderViewTab === 'abandoned' && (
-                          <span className={`text-xs mt-1 ${order.payment_status === 'failed' ? 'text-red-600' : 'text-amber-600'}`}>
-                            {order.payment_status === 'failed' ? 'Failed' : 'Pending'}
-                          </span>
-                        )}
+                      <div className="flex flex-col gap-1">
+                        <span className="text-gray-700 capitalize">{order.payment_method || 'N/A'}</span>
+                        <span
+                          className={`inline-flex self-start px-2 py-0.5 rounded-full text-[11px] font-semibold border ${
+                            order.payment_status === 'paid'
+                              ? 'bg-green-100 text-green-800 border-green-200'
+                              : order.payment_status === 'failed'
+                                ? 'bg-red-100 text-red-700 border-red-200'
+                                : 'bg-amber-100 text-amber-800 border-amber-200'
+                          }`}
+                        >
+                          {order.payment_status === 'paid'
+                            ? 'Paid'
+                            : order.payment_status === 'failed'
+                              ? 'Failed'
+                              : 'Unpaid'}
+                        </span>
                       </div>
                     </td>
                     <td className="py-4 px-4">
@@ -640,7 +655,7 @@ export default function AdminOrdersPage() {
                     </td>
                     <td className="py-4 px-4">
                       <span className={`px-3 py-1 rounded-full text-xs font-semibold border whitespace-nowrap ${statusColors[order.status] || 'bg-gray-100 text-gray-700 border-gray-200'}`}>
-                        {formatStatus(order.status)}
+                        {formatStatus(order.status, order.payment_status)}
                       </span>
                     </td>
                     <td className="py-4 px-4">
