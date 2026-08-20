@@ -16,7 +16,7 @@ export const dynamic = 'force-dynamic';
 export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const featured = searchParams.get('featured') === 'true';
-    const limit = parseInt(searchParams.get('limit') || '50');
+    const limit = Math.min(Math.max(parseInt(searchParams.get('limit') || '50', 10) || 50, 1), 200);
     const category = searchParams.get('category');
     const branchParam = searchParams.get('branch');
 

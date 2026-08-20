@@ -45,8 +45,8 @@ export default function Home() {
         // Use storefront APIs (service-role backed on server) so admin-created
         // records always show publicly even if client-side RLS is strict.
         const [featuredProductsRes, allProductsRes, categoriesRes] = await Promise.all([
-          fetch(`/api/storefront/products?featured=true&limit=50${branchQuery}`, { cache: 'no-store' }),
-          fetch(`/api/storefront/products?limit=50${branchQuery}`, { cache: 'no-store' }),
+          fetch(`/api/storefront/products?featured=true&limit=100${branchQuery}`, { cache: 'no-store' }),
+          fetch(`/api/storefront/products?limit=100${branchQuery}`, { cache: 'no-store' }),
           fetch('/api/storefront/categories', { cache: 'no-store' }),
         ]);
 
@@ -60,18 +60,13 @@ export default function Home() {
           ? await categoriesRes.json()
           : [];
 
-        const seen = new Set<string>();
-        const products: any[] = [];
-        for (const list of [featuredProductsData || [], allProductsData || []]) {
-          for (const p of list) {
-            if (p?.id && !seen.has(p.id)) {
-              seen.add(p.id);
-              products.push(p);
-            }
-          }
-          if (products.length >= 12) break;
-        }
-        setFeaturedProducts(products.slice(0, 12));
+        const featuredList = Array.isArray(featuredProductsData) ? featuredProductsData : [];
+        const allList = Array.isArray(allProductsData) ? allProductsData : [];
+
+        // Show every product marked Featured in admin (no hard cap).
+        // If none are featured yet, fall back to the full catalog so the home grid isn't empty.
+        const homepageProducts = featuredList.length > 0 ? featuredList : allList;
+        setFeaturedProducts(homepageProducts);
 
         const featuredCats = (categoriesData || []).filter(
           (c: any) => c?.metadata?.featured === true
@@ -509,7 +504,7 @@ export default function Home() {
             </h2>
           </div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
-            {latestProducts.slice(0, 8).map((product) => (
+            {latestProducts.map((product) => (
               <Link
                 key={`insta-${product.id}`}
                 href={`/product/${product.slug}`}
