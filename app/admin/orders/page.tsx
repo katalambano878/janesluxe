@@ -40,19 +40,29 @@ interface OrderStats {
   status: string;
 }
 
-/**
- * An unpaid order is only "abandoned" once the customer has had a fair chance to
- * finish paying. Before that it's a live order the shop should be watching.
- */
-const AWAITING_PAYMENT_WINDOW_MS = 2 * 60 * 60 * 1000;
+/** Orders this new are usually still mid-payment rather than abandoned. */
+const JUST_PLACED_WINDOW_MS = 2 * 60 * 60 * 1000;
 
 const isUnpaid = (order: any) => order.payment_status !== 'paid';
 
-const isAwaitingPayment = (order: any) =>
-  isUnpaid(order) && Date.now() - new Date(order.created_at).getTime() <= AWAITING_PAYMENT_WINDOW_MS;
+const isJustPlaced = (order: any) =>
+  isUnpaid(order) && Date.now() - new Date(order.created_at).getTime() <= JUST_PLACED_WINDOW_MS;
 
-const isAbandoned = (order: any) =>
-  isUnpaid(order) && Date.now() - new Date(order.created_at).getTime() > AWAITING_PAYMENT_WINDOW_MS;
+const orderPhone = (order: any) =>
+  String(order.shipping_address?.phone || order.metadata?.phone || '').replace(/\D/g, '').slice(-9);
+
+/**
+ * A customer who retries checkout leaves a new unpaid order behind on every
+ * attempt, so the abandoned list fills up with carts that were actually paid
+ * for under a later order number. Flag those so staff don't chase them.
+ */
+const wasPaidOnAnotherAttempt = (order: any, paidOrders: any[]) => {
+  const phone = orderPhone(order);
+  if (!phone) return false;
+  return paidOrders.some(
+    (p) => p.id !== order.id && orderPhone(p) === phone && Number(p.total) === Number(order.total)
+  );
+};
 
 export default function AdminOrdersPage() {
   const { selectedBranch, loading: branchLoading } = useAdminBranch();
@@ -64,7 +74,7 @@ export default function AdminOrdersPage() {
   const [sortBy, setSortBy] = useState('date');
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
-  const [orderViewTab, setOrderViewTab] = useState<'confirmed' | 'awaiting' | 'abandoned'>('confirmed');
+  const [orderViewTab, setOrderViewTab] = useState<'confirmed' | 'abandoned'>('confirmed');
   const [sendingPaymentLink, setSendingPaymentLink] = useState<string | null>(null);
   const [orderStats, setOrderStats] = useState<OrderStats[]>([
     { label: 'All Confirmed', count: 0, status: 'all' },
@@ -75,8 +85,9 @@ export default function AdminOrdersPage() {
     { label: 'Cancelled', count: 0, status: 'cancelled' }
   ]);
   const [abandonedCount, setAbandonedCount] = useState(0);
-  const [awaitingCount, setAwaitingCount] = useState(0);
+  const [justPlacedCount, setJustPlacedCount] = useState(0);
   const [confirmedCount, setConfirmedCount] = useState(0);
+  const [paidOrders, setPaidOrders] = useState<any[]>([]);
   const [showProductStats, setShowProductStats] = useState(false);
   const [productFilter, setProductFilter] = useState('all');
   const [availableProducts, setAvailableProducts] = useState<string[]>([]);
@@ -113,23 +124,24 @@ export default function AdminOrdersPage() {
       });
       setAvailableProducts(Array.from(productNames).sort());
 
-      // Confirmed = payment received. Awaiting = just placed, still unpaid.
-      // Abandoned = unpaid and past the window where payment is still likely.
+      // Confirmed = payment received. Abandoned cart = checkout started, unpaid.
       const allOrders = ordersData || [];
-      const paidOrders = allOrders.filter((o: any) => o.payment_status === 'paid');
+      const paid = allOrders.filter((o: any) => o.payment_status === 'paid');
+      const unpaid = allOrders.filter(isUnpaid);
 
-      setConfirmedCount(paidOrders.length);
-      setAwaitingCount(allOrders.filter(isAwaitingPayment).length);
-      setAbandonedCount(allOrders.filter(isAbandoned).length);
+      setPaidOrders(paid);
+      setConfirmedCount(paid.length);
+      setAbandonedCount(unpaid.length);
+      setJustPlacedCount(unpaid.filter(isJustPlaced).length);
 
       // Status cards only count paid (confirmed) orders
       const stats = [
-        { label: 'All Confirmed', count: paidOrders.length, status: 'all' },
-        { label: 'Processing', count: paidOrders.filter((o: any) => o.status === 'processing').length, status: 'processing' },
-        { label: 'Packaged', count: paidOrders.filter((o: any) => o.status === 'shipped').length, status: 'shipped' },
-        { label: 'Dispatched To Rider', count: paidOrders.filter((o: any) => o.status === 'dispatched_to_rider').length, status: 'dispatched_to_rider' },
-        { label: 'Delivered', count: paidOrders.filter((o: any) => o.status === 'delivered').length, status: 'delivered' },
-        { label: 'Cancelled', count: paidOrders.filter((o: any) => o.status === 'cancelled').length, status: 'cancelled' }
+        { label: 'All Confirmed', count: paid.length, status: 'all' },
+        { label: 'Processing', count: paid.filter((o: any) => o.status === 'processing').length, status: 'processing' },
+        { label: 'Packaged', count: paid.filter((o: any) => o.status === 'shipped').length, status: 'shipped' },
+        { label: 'Dispatched To Rider', count: paid.filter((o: any) => o.status === 'dispatched_to_rider').length, status: 'dispatched_to_rider' },
+        { label: 'Delivered', count: paid.filter((o: any) => o.status === 'delivered').length, status: 'delivered' },
+        { label: 'Cancelled', count: paid.filter((o: any) => o.status === 'cancelled').length, status: 'cancelled' }
       ];
       setOrderStats(stats);
 
@@ -332,12 +344,11 @@ export default function AdminOrdersPage() {
     const customerEmail = getCustomerEmail(order).toLowerCase();
     const orderId = (order.order_number || order.id).toLowerCase();
 
+    // Confirmed = paid only. Abandoned cart = unpaid checkout attempts.
     const matchesViewTab =
       orderViewTab === 'confirmed'
         ? order.payment_status === 'paid'
-        : orderViewTab === 'awaiting'
-          ? isAwaitingPayment(order)
-          : isAbandoned(order);
+        : order.payment_status !== 'paid';
 
     const matchesSearch = orderId.includes(searchQuery.toLowerCase()) ||
       customerName.includes(searchQuery.toLowerCase()) ||
@@ -371,7 +382,7 @@ export default function AdminOrdersPage() {
           <p className="text-gray-600 mt-1">
             {selectedBranch
               ? `Orders placed at ${selectedBranch.name}`
-              : 'Paid, awaiting payment, and abandoned checkouts, separated'}
+              : 'Confirmed (paid) orders and abandoned checkouts, separated'}
           </p>
         </div>
         <div className="flex items-center gap-3 w-full md:w-auto">
@@ -392,8 +403,8 @@ export default function AdminOrdersPage() {
         </div>
       </div>
 
-      {/* View Tabs: Confirmed / Awaiting Payment (new) / Abandoned Cart */}
-      <div className="flex flex-wrap border-b border-gray-200">
+      {/* View Tabs: Confirmed Orders vs Abandoned Cart */}
+      <div className="flex border-b border-gray-200">
         <button
           onClick={() => { setOrderViewTab('confirmed'); setStatusFilter('all'); setSelectedOrders([]); }}
           className={`px-6 py-3 font-semibold text-sm border-b-2 transition-colors cursor-pointer ${
@@ -404,20 +415,6 @@ export default function AdminOrdersPage() {
         >
           <i className="ri-check-double-line mr-2"></i>
           Confirmed Orders ({confirmedCount})
-        </button>
-        <button
-          onClick={() => { setOrderViewTab('awaiting'); setStatusFilter('all'); setSelectedOrders([]); }}
-          className={`px-6 py-3 font-semibold text-sm border-b-2 transition-colors cursor-pointer ${
-            orderViewTab === 'awaiting'
-              ? 'border-blue-600 text-blue-600'
-              : 'border-transparent text-gray-500 hover:text-gray-700'
-          }`}
-        >
-          <i className="ri-time-line mr-2"></i>
-          Awaiting Payment ({awaitingCount})
-          {awaitingCount > 0 && orderViewTab !== 'awaiting' && (
-            <span className="ml-2 inline-flex items-center justify-center w-2 h-2 rounded-full bg-blue-500 align-middle" />
-          )}
         </button>
         <button
           onClick={() => { setOrderViewTab('abandoned'); setStatusFilter('all'); setSelectedOrders([]); }}
@@ -446,19 +443,19 @@ export default function AdminOrdersPage() {
             </div>
           </div>
 
-          {awaitingCount > 0 && (
+          {justPlacedCount > 0 && (
             <button
-              onClick={() => { setOrderViewTab('awaiting'); setStatusFilter('all'); setSelectedOrders([]); }}
+              onClick={() => { setOrderViewTab('abandoned'); setStatusFilter('all'); setSelectedOrders([]); }}
               className="w-full text-left bg-blue-50 border border-blue-200 rounded-lg p-4 hover:bg-blue-100 transition-colors cursor-pointer"
             >
               <div className="flex items-start space-x-3">
                 <i className="ri-notification-3-line text-xl text-blue-600 mt-0.5"></i>
                 <div>
                   <p className="text-sm font-semibold text-blue-800">
-                    {awaitingCount} new order{awaitingCount > 1 ? 's' : ''} awaiting payment
+                    {justPlacedCount} order{justPlacedCount > 1 ? 's' : ''} placed in the last 2 hours still paying
                   </p>
                   <p className="text-sm text-blue-700 mt-1">
-                    Just placed but not paid yet. They move here automatically once payment lands — tap to view them.
+                    They appear here automatically once the money lands. Tap to see them in Abandoned Cart.
                   </p>
                 </div>
               </div>
@@ -482,22 +479,6 @@ export default function AdminOrdersPage() {
         </>
       )}
 
-      {orderViewTab === 'awaiting' && (
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <div className="flex items-start space-x-3">
-            <i className="ri-time-line text-xl text-blue-600 mt-0.5"></i>
-            <div>
-              <p className="text-sm font-semibold text-blue-800">Awaiting Payment</p>
-              <p className="text-sm text-blue-700 mt-1">
-                Orders placed in the last 2 hours that haven&apos;t been paid yet. Payment is still being confirmed, so
-                don&apos;t fulfill them yet — they move to Confirmed Orders on their own once the money lands. Use the
-                send button to resend a payment link.
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
-
       {orderViewTab === 'abandoned' && (
         <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
           <div className="flex items-start space-x-3">
@@ -505,7 +486,7 @@ export default function AdminOrdersPage() {
             <div>
               <p className="text-sm font-semibold text-amber-800">Abandoned Cart</p>
               <p className="text-sm text-amber-700 mt-1">
-                Checkout started over 2 hours ago and payment was never completed. These are not confirmed orders — do not fulfill them unless you mark payment as received. You can resend a payment link from the actions column.
+                Checkout started but payment was never completed. These are not confirmed orders — do not fulfill them unless you mark payment as received. Orders just placed can still turn into paid orders on their own, and rows tagged <span className="font-semibold">Paid on retry</span> were already paid under another order number. You can resend a payment link from the actions column.
               </p>
             </div>
           </div>
@@ -662,20 +643,14 @@ export default function AdminOrdersPage() {
               ) : filteredOrders.length === 0 ? (
                 <tr>
                   <td colSpan={10} className="py-12 text-center text-gray-500">
-                    <i className={`${orderViewTab === 'confirmed' ? 'ri-inbox-line' : orderViewTab === 'awaiting' ? 'ri-time-line' : 'ri-shopping-cart-2-line'} text-4xl text-gray-300`}></i>
+                    <i className={`${orderViewTab === 'abandoned' ? 'ri-shopping-cart-2-line' : 'ri-inbox-line'} text-4xl text-gray-300`}></i>
                     <p className="mt-2">
-                      {orderViewTab === 'confirmed'
-                        ? 'No confirmed orders found'
-                        : orderViewTab === 'awaiting'
-                          ? 'No orders awaiting payment'
-                          : 'No abandoned carts found'}
+                      {orderViewTab === 'confirmed' ? 'No confirmed orders found' : 'No abandoned carts found'}
                     </p>
                     <p className="text-sm">
                       {orderViewTab === 'confirmed'
                         ? 'Paid orders will appear here after payment succeeds'
-                        : orderViewTab === 'awaiting'
-                          ? 'New orders show up here the moment a customer checks out'
-                          : 'Unpaid checkouts land here once they are over 2 hours old'}
+                        : 'Unpaid checkouts will appear here when customers abandon payment'}
                     </p>
                   </td>
                 </tr>
@@ -733,6 +708,22 @@ export default function AdminOrdersPage() {
                               ? 'Failed'
                               : 'Unpaid'}
                         </span>
+                        {orderViewTab === 'abandoned' && wasPaidOnAnotherAttempt(order, paidOrders) && (
+                          <span
+                            className="inline-flex self-start px-2 py-0.5 rounded-full text-[11px] font-semibold border bg-emerald-100 text-emerald-800 border-emerald-200"
+                            title="Same customer and amount was paid under a different order number — this row is a duplicate checkout attempt, not lost money."
+                          >
+                            Paid on retry
+                          </span>
+                        )}
+                        {orderViewTab === 'abandoned' && isJustPlaced(order) && (
+                          <span
+                            className="inline-flex self-start px-2 py-0.5 rounded-full text-[11px] font-semibold border bg-blue-100 text-blue-800 border-blue-200"
+                            title="Placed less than 2 hours ago — payment may still come through."
+                          >
+                            Just placed
+                          </span>
+                        )}
                       </div>
                     </td>
                     <td className="py-4 px-4">
@@ -763,7 +754,7 @@ export default function AdminOrdersPage() {
                         >
                           <i className="ri-eye-line text-lg w-4 h-4 flex items-center justify-center"></i>
                         </Link>
-                        {orderViewTab !== 'confirmed' && order.payment_status !== 'paid' && (
+                        {orderViewTab === 'abandoned' && order.payment_status !== 'paid' && (
                           <button
                             onClick={() => handleResendPaymentLink(order)}
                             disabled={sendingPaymentLink === order.id}
@@ -797,12 +788,8 @@ export default function AdminOrdersPage() {
           <div className="p-6 border-t border-gray-200 flex items-center justify-between">
             <p className="text-gray-600">
               Showing {filteredOrders.length} of{' '}
-              {orderViewTab === 'confirmed' ? confirmedCount : orderViewTab === 'awaiting' ? awaitingCount : abandonedCount}{' '}
-              {orderViewTab === 'confirmed'
-                ? 'confirmed orders'
-                : orderViewTab === 'awaiting'
-                  ? 'orders awaiting payment'
-                  : 'abandoned carts'}
+              {orderViewTab === 'confirmed' ? confirmedCount : abandonedCount}{' '}
+              {orderViewTab === 'confirmed' ? 'confirmed orders' : 'abandoned carts'}
             </p>
           </div>
         )}
