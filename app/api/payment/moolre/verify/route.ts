@@ -3,6 +3,7 @@ import { supabaseAdmin } from '@/lib/supabase-admin';
 import { sendOrderConfirmation } from '@/lib/notifications';
 import { checkRateLimit, getClientIdentifier, RATE_LIMITS } from '@/lib/rate-limit';
 import { isMoolreConfigured, moolreCheckStatus, moolreListTransactions } from '@/lib/moolre';
+import { findCollectionForOrder, moolreRefsForOrder, moolreTxAmount } from '@/lib/moolre-reconcile';
 
 /**
  * Moolre payment verification endpoint.
@@ -60,9 +61,7 @@ export async function POST(req: Request) {
         }
 
         // Try the saved attempt reference first, then the plain order number.
-        const refsToTry: string[] = [];
-        if (order.metadata?.moolre_externalref) refsToTry.push(order.metadata.moolre_externalref);
-        if (!refsToTry.includes(orderNumber)) refsToTry.push(orderNumber);
+        const refsToTry = moolreRefsForOrder(order as any);
 
         let verified: Awaited<ReturnType<typeof moolreCheckStatus>> | null = null;
         let verifiedRef: string | null = null;
@@ -84,32 +83,36 @@ export async function POST(req: Request) {
             }
         }
 
-        // Fallback: the customer may have paid a different attempt reference
-        // than the ones we stored (e.g. an earlier or re-generated link).
-        // Search Moolre's successful transactions around the order date and
-        // match strictly by the order-number reference prefix.
+        // Fallback: the customer may have paid an attempt reference we never
+        // stored. Moolre's list API blanks out externalref, so match the
+        // collection by amount inside a window around the order and only accept
+        // an unambiguous hit.
         if (!verified) {
             const created = new Date(order.created_at);
             const fmt = (d: Date) => d.toISOString().slice(0, 19).replace('T', ' ');
-            const startdate = fmt(new Date(created.getTime() - 24 * 60 * 60 * 1000));
-            const enddate = fmt(new Date(created.getTime() + 45 * 24 * 60 * 60 * 1000));
+            const startdate = fmt(new Date(created.getTime() - 60 * 60 * 1000));
+            const enddate = fmt(new Date(created.getTime() + 12 * 60 * 60 * 1000));
 
             const list = await moolreListTransactions({ startdate, enddate, status: '1', limit: '500' });
             if (list.ok) {
-                const m = list.transactions.find((t) => {
-                    const ref = String(t.externalref || '');
-                    return Number(t.txstatus) === 1 && (ref === orderNumber || ref.startsWith(`${orderNumber}-R`));
+                const { match, ambiguous } = findCollectionForOrder(list.transactions, {
+                    total: Number(order.total),
+                    createdAt: order.created_at,
                 });
-                if (m) {
-                    const amt = Number(m.amount !== undefined ? m.amount : m.value);
-                    const expected = Number(order.total);
-                    // Require a real amount that matches the order total.
-                    if (!Number.isNaN(amt) && Math.abs(amt - expected) <= 0.01) {
-                        verified = { paid: true, authError: false, amount: amt, transactionId: m.transactionid, paidAt: m.ts };
-                        verifiedRef = m.externalref && m.externalref !== '0' ? m.externalref : orderNumber;
-                    } else {
-                        console.error('[Moolre Verify] list-match rejected — amount missing or mismatch. Expected:', expected, 'Got:', amt, 'ref:', m.externalref);
-                    }
+                if (ambiguous) {
+                    console.warn('[Moolre Verify] Ambiguous amount match for', orderNumber, '— not auto-marking.');
+                } else if (match) {
+                    verified = {
+                        paid: true,
+                        authError: false,
+                        amount: moolreTxAmount(match),
+                        transactionId: match.transactionid,
+                        paidAt: match.ts,
+                    };
+                    verifiedRef =
+                        match.externalref && match.externalref !== '0'
+                            ? match.externalref
+                            : order.metadata?.moolre_externalref || orderNumber;
                 }
             }
         }

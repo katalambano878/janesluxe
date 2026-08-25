@@ -3,6 +3,7 @@ import { supabaseAdmin } from '@/lib/supabase-admin';
 import { sendOrderConfirmation } from '@/lib/notifications';
 import { verifyAuth } from '@/lib/auth';
 import { isMoolreConfigured, moolreListTransactions, type MoolreTransaction } from '@/lib/moolre';
+import { findCollectionForOrder } from '@/lib/moolre-reconcile';
 
 /**
  * Admin reconciliation for Moolre payments.
@@ -96,20 +97,24 @@ export async function POST(req: Request) {
     const successful = list.transactions.filter((t) => Number(t.txstatus) === 1);
 
     // 1) Explicit transaction id override.
-    // 2) Reference match: externalref equals the order number or starts with
-    //    "<orderNumber>-R" (our per-attempt reference format).
-    // 3) Amount-only candidates (for txns Moolre returns with externalref "0").
+    // 2) Otherwise match the customer collection by amount inside a window
+    //    around the order. Moolre's list API returns externalref "0" for every
+    //    row, so our own reference cannot be used for matching here.
     let match: MoolreTransaction | undefined;
+    let ambiguous = false;
     if (forceTxId) {
         match = successful.find((t) => String(t.transactionid) === forceTxId);
         if (!match) {
             return NextResponse.json({ success: false, message: `No successful Moolre transaction ${forceTxId} in window` }, { status: 404 });
         }
     } else {
-        match = successful.find((t) => {
-            const ref = String(t.externalref || '');
-            return ref === orderNumber || ref.startsWith(`${orderNumber}-R`);
+        const found = findCollectionForOrder(successful, {
+            total: expected,
+            createdAt: order.created_at,
+            windowHours: 12,
         });
+        match = found.match;
+        ambiguous = found.ambiguous;
     }
 
     const amountCandidates = successful.filter(
@@ -120,7 +125,10 @@ export async function POST(req: Request) {
         return NextResponse.json({
             success: false,
             matched: false,
-            message: 'No transaction matched this order by reference. Review candidates and, if correct, re-run with the transactionId to force-match.',
+            ambiguous,
+            message: ambiguous
+                ? 'Several payments of this amount fall in the order window. Re-run with the correct transactionId to force-match.'
+                : 'No transaction matched this order. Review candidates and, if correct, re-run with the transactionId to force-match.',
             expectedAmount: expected,
             window: { startdate, enddate },
             candidates: amountCandidates.map((t) => ({

@@ -72,8 +72,17 @@ export async function POST(req: Request) {
         // webhook body itself — but ONLY when this endpoint is protected by the
         // shared `?key=` secret. Without the secret, an attacker could POST a
         // fake "paid" webhook, so we require a real status-API confirmation.
-        const status = await moolreCheckStatus(externalref);
         const webhookSaysPaid = Number(body?.status) === 1;
+
+        // Moolre's status API sometimes lags behind its own webhook, so a
+        // genuine payment can look "not found" for a second or two. Moolre
+        // never retries the callback, so retry the lookup here instead.
+        let status = await moolreCheckStatus(externalref);
+        if (!status.paid && !status.authError && webhookSaysPaid) {
+            await new Promise((resolve) => setTimeout(resolve, 2500));
+            status = await moolreCheckStatus(externalref);
+        }
+
         const confirmed = status.paid || (secretConfigured && status.authError && webhookSaysPaid);
 
         if (!secretConfigured) {
