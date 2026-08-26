@@ -31,12 +31,12 @@ export async function GET(request: Request) {
       const { data: paidOrders, error: ordersError } = await paidOrdersQuery;
       if (ordersError) throw ordersError;
 
-      const orderIds = (paidOrders || []).map((o) => o.id);
+      const orderIds = (paidOrders || []).map((o: any) => o.id);
       if (orderIds.length === 0) {
         return NextResponse.json({ items: [] });
       }
 
-      const orderMap = new Map((paidOrders || []).map((o) => [o.id, o]));
+      const orderMap = new Map((paidOrders || []).map((o: any) => [o.id, o]));
       const { data: orderItems, error: itemsError } = await supabaseAdmin
         .from('order_items')
         .select('quantity, product_name, product_id, variant_name, total_price, order_id')
@@ -44,7 +44,7 @@ export async function GET(request: Request) {
 
       if (itemsError) throw itemsError;
 
-      const items = (orderItems || []).map((item) => ({
+      const items = (orderItems || []).map((item: any) => ({
         ...item,
         orders: orderMap.get(item.order_id) || null,
       }));
@@ -52,8 +52,17 @@ export async function GET(request: Request) {
       return NextResponse.json({ items });
     }
 
-    // Full orders list
-    const limit = Math.min(Math.max(parseInt(searchParams.get('limit') || '200', 10) || 200, 1), 500);
+    // Full orders list.
+    //
+    // The admin page searches and counts over what this returns, so a low cap
+    // silently hides older orders and makes them look like they never existed.
+    // Keep the ceiling well above the real order count and report the true
+    // total so the UI can say when it is showing a partial list.
+    const limit = Math.min(Math.max(parseInt(searchParams.get('limit') || '2000', 10) || 2000, 1), 10000);
+
+    let countQuery = supabaseAdmin.from('orders').select('id', { count: 'exact', head: true });
+    if (branchId) countQuery = countQuery.eq('branch_id', branchId);
+    const { count: totalOrders } = await countQuery;
 
     let ordersQuery = supabaseAdmin
       .from('orders')
@@ -88,7 +97,10 @@ export async function GET(request: Request) {
     const { data: ordersData, error } = await ordersQuery;
 
     if (error) throw error;
-    return NextResponse.json({ orders: ordersData || [] });
+
+    const orders = ordersData || [];
+    const total = typeof totalOrders === 'number' ? totalOrders : orders.length;
+    return NextResponse.json({ orders, total, truncated: total > orders.length });
   } catch (e: any) {
     console.error('Admin orders API error:', e);
     return NextResponse.json({ error: e.message }, { status: 500 });

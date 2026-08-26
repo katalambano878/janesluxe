@@ -50,8 +50,13 @@ const isJustPlaced = (order: any) =>
 
 const digitsOnly = (value: unknown) => String(value ?? '').replace(/\D/g, '');
 
+const allPhoneDigits = (order: any) =>
+  digitsOnly(
+    `${order.phone || ''} ${order.shipping_address?.phone || ''} ${order.metadata?.phone || ''}`
+  );
+
 const orderPhone = (order: any) =>
-  digitsOnly(order.shipping_address?.phone || order.metadata?.phone).slice(-9);
+  digitsOnly(order.phone || order.shipping_address?.phone || order.metadata?.phone).slice(-9);
 
 /**
  * Staff usually arrive from a Moolre SMS, which gives them a payer phone number
@@ -73,6 +78,7 @@ const orderMatchesSearch = (order: any, query: string, name: string, email: stri
     order.metadata?.tracking_number,
     order.metadata?.moolre_transaction_id,
     order.metadata?.moolre_externalref,
+    order.phone,
     order.shipping_address?.phone,
     order.metadata?.phone,
   ]
@@ -84,11 +90,8 @@ const orderMatchesSearch = (order: any, query: string, name: string, email: stri
   const qDigits = digitsOnly(q);
   if (qDigits.length < 6) return false;
 
-  const phoneDigits = digitsOnly(
-    `${order.shipping_address?.phone || ''} ${order.metadata?.phone || ''}`
-  );
   return (
-    phoneDigits.includes(qDigits.slice(-9)) ||
+    allPhoneDigits(order).includes(qDigits.slice(-9)) ||
     digitsOnly(order.metadata?.moolre_transaction_id).includes(qDigits)
   );
 };
@@ -130,6 +133,7 @@ export default function AdminOrdersPage() {
   const [justPlacedCount, setJustPlacedCount] = useState(0);
   const [confirmedCount, setConfirmedCount] = useState(0);
   const [paidOrders, setPaidOrders] = useState<any[]>([]);
+  const [missingFromView, setMissingFromView] = useState(0);
   const [showProductStats, setShowProductStats] = useState(false);
   const [productFilter, setProductFilter] = useState('all');
   const [availableProducts, setAvailableProducts] = useState<string[]>([]);
@@ -148,14 +152,20 @@ export default function AdminOrdersPage() {
     try {
       if (!silent) setLoading(true);
 
-      // Fetch orders via server-side API (bypasses RLS), scoped to branch if selected
-      const branchQuery = selectedBranch ? `?branch=${encodeURIComponent(selectedBranch.id)}` : '';
-      const res = await fetch(`/api/admin/orders${branchQuery}`, { credentials: 'include' });
+      // Fetch orders via server-side API (bypasses RLS), scoped to branch if selected.
+      // Ask for the whole history: search and the tab counts run over this list,
+      // so anything left behind here looks to staff like a missing order.
+      const params = new URLSearchParams({ limit: '5000' });
+      if (selectedBranch) params.set('branch', selectedBranch.id);
+      const res = await fetch(`/api/admin/orders?${params.toString()}`, { credentials: 'include' });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || 'Failed to fetch orders');
       const ordersData = json.orders;
 
       setOrders(ordersData || []);
+      setMissingFromView(
+        json.truncated ? Math.max(Number(json.total) - (ordersData?.length || 0), 0) : 0
+      );
 
       // Extract unique product names for filter
       const productNames = new Set<string>();
@@ -459,6 +469,23 @@ export default function AdminOrdersPage() {
           </button>
         </div>
       </div>
+
+      {missingFromView > 0 && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+          <div className="flex items-start space-x-3">
+            <i className="ri-error-warning-line text-xl text-red-600 mt-0.5"></i>
+            <div>
+              <p className="text-sm font-semibold text-red-800">
+                {missingFromView} older orders are not loaded
+              </p>
+              <p className="text-sm text-red-700 mt-1">
+                Counts and search below cover only the orders shown, so those older ones will not be
+                found here. Tell your developer the admin order list is being truncated.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* View Tabs: Confirmed Orders vs Abandoned Cart */}
       <div className="flex border-b border-gray-200">
