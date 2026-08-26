@@ -48,8 +48,50 @@ const isUnpaid = (order: any) => order.payment_status !== 'paid';
 const isJustPlaced = (order: any) =>
   isUnpaid(order) && Date.now() - new Date(order.created_at).getTime() <= JUST_PLACED_WINDOW_MS;
 
+const digitsOnly = (value: unknown) => String(value ?? '').replace(/\D/g, '');
+
 const orderPhone = (order: any) =>
-  String(order.shipping_address?.phone || order.metadata?.phone || '').replace(/\D/g, '').slice(-9);
+  digitsOnly(order.shipping_address?.phone || order.metadata?.phone).slice(-9);
+
+/**
+ * Staff usually arrive from a Moolre SMS, which gives them a payer phone number
+ * and a transaction ID but no order number, and customers spell their own email
+ * wrong often enough that email alone is not a dependable way in. So match on
+ * every identifier that appears on a payment alert, phone numbers by digits only
+ * since they are stored in many shapes (0244…, +23324…, two numbers in one field).
+ */
+const orderMatchesSearch = (order: any, query: string, name: string, email: string) => {
+  const q = query.trim().toLowerCase();
+  if (!q) return true;
+
+  const haystack = [
+    order.order_number,
+    order.id,
+    name,
+    email,
+    order.tracking_number,
+    order.metadata?.tracking_number,
+    order.metadata?.moolre_transaction_id,
+    order.metadata?.moolre_externalref,
+    order.shipping_address?.phone,
+    order.metadata?.phone,
+  ]
+    .filter(Boolean)
+    .map((v) => String(v).toLowerCase());
+
+  if (haystack.some((v) => v.includes(q))) return true;
+
+  const qDigits = digitsOnly(q);
+  if (qDigits.length < 6) return false;
+
+  const phoneDigits = digitsOnly(
+    `${order.shipping_address?.phone || ''} ${order.metadata?.phone || ''}`
+  );
+  return (
+    phoneDigits.includes(qDigits.slice(-9)) ||
+    digitsOnly(order.metadata?.moolre_transaction_id).includes(qDigits)
+  );
+};
 
 /**
  * A customer who retries checkout leaves a new unpaid order behind on every
@@ -342,7 +384,6 @@ export default function AdminOrdersPage() {
   const filteredOrders = orders.filter(order => {
     const customerName = getCustomerName(order).toLowerCase();
     const customerEmail = getCustomerEmail(order).toLowerCase();
-    const orderId = (order.order_number || order.id).toLowerCase();
 
     // Confirmed = paid only. Abandoned cart = unpaid checkout attempts.
     const matchesViewTab =
@@ -350,9 +391,7 @@ export default function AdminOrdersPage() {
         ? order.payment_status === 'paid'
         : order.payment_status !== 'paid';
 
-    const matchesSearch = orderId.includes(searchQuery.toLowerCase()) ||
-      customerName.includes(searchQuery.toLowerCase()) ||
-      customerEmail.includes(searchQuery.toLowerCase());
+    const matchesSearch = orderMatchesSearch(order, searchQuery, customerName, customerEmail);
     const matchesStatus = statusFilter === 'all' || order.status === statusFilter;
     const method = String(order.shipping_method || '').toLowerCase();
     const matchesShipping =
@@ -365,6 +404,24 @@ export default function AdminOrdersPage() {
       order.order_items?.some((item: any) => item.product_name === productFilter);
     return matchesViewTab && matchesSearch && matchesStatus && matchesShipping && matchesProduct;
   });
+
+  // A search that hits nothing here but matches in the other tab is the usual
+  // reason an order looks missing, so point staff at it instead of dead-ending.
+  const matchesInOtherTab = !searchQuery.trim()
+    ? 0
+    : orders.filter((order) => {
+        const inOtherTab =
+          orderViewTab === 'confirmed' ? order.payment_status !== 'paid' : order.payment_status === 'paid';
+        return (
+          inOtherTab &&
+          orderMatchesSearch(
+            order,
+            searchQuery,
+            getCustomerName(order).toLowerCase(),
+            getCustomerEmail(order).toLowerCase()
+          )
+        );
+      }).length;
 
   return (
     <div className="space-y-6">
@@ -503,7 +560,7 @@ export default function AdminOrdersPage() {
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search by order ID, customer name, or email..."
+                  placeholder="Search order ID, name, email, phone or Moolre Tx ID..."
                   className="w-full pl-12 pr-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-600 focus:border-gray-600 text-sm"
                 />
               </div>
@@ -652,6 +709,16 @@ export default function AdminOrdersPage() {
                         ? 'Paid orders will appear here after payment succeeds'
                         : 'Unpaid checkouts will appear here when customers abandon payment'}
                     </p>
+                    {matchesInOtherTab > 0 && (
+                      <button
+                        onClick={() => setOrderViewTab(orderViewTab === 'confirmed' ? 'abandoned' : 'confirmed')}
+                        className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gray-900 text-white text-sm font-semibold hover:bg-gray-800 cursor-pointer"
+                      >
+                        <i className="ri-arrow-right-line" />
+                        {matchesInOtherTab} match{matchesInOtherTab > 1 ? 'es' : ''} in{' '}
+                        {orderViewTab === 'confirmed' ? 'Abandoned Cart' : 'Confirmed Orders'}
+                      </button>
+                    )}
                   </td>
                 </tr>
               ) : (
