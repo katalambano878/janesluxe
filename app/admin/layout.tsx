@@ -446,7 +446,12 @@ export default function AdminLayout({
       path: '/admin/delivery',
       permissionKey: 'delivery'
     },
-    {
+        {
+      title: 'Buy SMS',
+      icon: 'ri-message-2-line',
+      path: '/admin/sms-credit'
+    },
+{
       title: 'Modules',
       icon: 'ri-puzzle-line',
       path: '/admin/modules',
