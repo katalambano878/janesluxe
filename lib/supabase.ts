@@ -9,15 +9,28 @@ const PLACEHOLDER_URL = 'https://placeholder.supabase.co';
 const PLACEHOLDER_ANON_KEY =
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0';
 
-function readPublicEnv(name: 'NEXT_PUBLIC_SUPABASE_URL' | 'NEXT_PUBLIC_SUPABASE_ANON_KEY'): string {
-  const v = process.env[name];
-  if (typeof v === 'string' && v.trim().length > 0) return v.trim();
+/**
+ * Must be static `process.env.NEXT_PUBLIC_*` reads.
+ * Next.js only inlines those into the browser bundle. A dynamic
+ * `process.env[name]` lookup stays empty on the client, so signup and
+ * login were posting to placeholder.supabase.co and failing.
+ */
+function readSupabaseUrl(): string {
+  const fromEnv = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  if (typeof fromEnv === 'string' && fromEnv.trim().length > 0) return fromEnv.trim();
+  if (typeof window !== 'undefined' && window.location?.origin) return window.location.origin;
+  return '';
+}
+
+function readAnonKey(): string {
+  const fromEnv = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (typeof fromEnv === 'string' && fromEnv.trim().length > 0) return fromEnv.trim();
   return '';
 }
 
 export function getSupabaseConfig() {
-  const url = readPublicEnv('NEXT_PUBLIC_SUPABASE_URL');
-  const anonKey = readPublicEnv('NEXT_PUBLIC_SUPABASE_ANON_KEY');
+  const url = readSupabaseUrl();
+  const anonKey = readAnonKey();
   return {
     url: url || PLACEHOLDER_URL,
     anonKey: anonKey || PLACEHOLDER_ANON_KEY,
