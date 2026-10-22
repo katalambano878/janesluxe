@@ -29,6 +29,13 @@ export default function OrderHistory() {
         const { data: { session } } = await supabase.auth.getSession();
         if (!session) return;
 
+        if (session.access_token) {
+          await fetch('/api/account/claim-orders', {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${session.access_token}` },
+          }).catch(() => undefined);
+        }
+
         const { data, error } = await supabase
           .from('orders')
           .select(`

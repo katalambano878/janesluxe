@@ -232,7 +232,7 @@ export async function sendOrderConfirmation(order: any) {
 
     // Get tracking number from metadata
     const trackingNumber = metadata?.tracking_number || '';
-    const trackingUrl = `${baseUrl}/order-tracking?order=${order_number || id}`;
+    const trackingUrl = `${baseUrl}/order-tracking?order=${encodeURIComponent(order_number || id)}&email=${encodeURIComponent(email || '')}`;
 
     console.log(`[Notification] Preparing for Order #${order_number} | Phone: ${phone ? 'Present' : 'Missing'} | Tracking: ${trackingNumber || 'None'}`);
 
@@ -348,7 +348,7 @@ export async function sendOrderStatusUpdate(order: any, newStatus: string) {
     const name = getName();
     const phone = orderPhone || shipping_address?.phone;
     const trackingNumber = metadata?.tracking_number || '';
-    const trackingUrl = `${baseUrl}/order-tracking?order=${order_number || id}`;
+    const trackingUrl = `${baseUrl}/order-tracking?order=${encodeURIComponent(order_number || id)}&email=${encodeURIComponent(email || '')}`;
 
     console.log(`[Notification] Status update for Order #${order_number} to ${newStatus} | Tracking: ${trackingNumber}`);
 

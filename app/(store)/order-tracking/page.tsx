@@ -8,23 +8,21 @@ import { supabase } from '@/lib/supabase';
 function OrderTrackingContent() {
   const searchParams = useSearchParams();
   const urlOrderNumber = searchParams.get('order') || '';
+  const urlEmail = searchParams.get('email') || '';
 
   const [orderNumber, setOrderNumber] = useState(urlOrderNumber);
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState(urlEmail);
   const [isTracking, setIsTracking] = useState(false);
   const [order, setOrder] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-
-  // Auto-track if order number AND email are in the URL
-  const urlEmail = searchParams.get('email') || '';
 
   const fetchOrder = useCallback(async (orderNum: string, verifyEmail?: string) => {
     const emailToVerify = verifyEmail || email;
 
     // SECURITY: Email is required for order tracking to prevent unauthorized access
     if (!emailToVerify) {
-      setError('Please enter your email address to verify your identity.');
+      setError('Please enter the email or phone number you used at checkout.');
       return;
     }
 
@@ -40,13 +38,13 @@ function OrderTrackingContent() {
 
       if (fetchError) {
         console.error('Order tracking error:', fetchError);
-        setError('Order not found. Please check your order number and try again.');
+        setError('Order not found. Check the order number from your confirmation message and try again.');
         setIsTracking(false);
         return;
       }
 
       if (!data || typeof data !== 'object') {
-        setError('Order not found. Please check your order number and email and try again.');
+        setError('Order not found. Use the order number from your text or email, and the same email or phone you used at checkout.');
         setIsTracking(false);
         return;
       }
@@ -68,6 +66,20 @@ function OrderTrackingContent() {
     }
   }, [urlOrderNumber, urlEmail, fetchOrder]);
 
+  useEffect(() => {
+    if (urlEmail) return;
+    let cancelled = false;
+    supabase.auth.getSession().then(({ data }) => {
+      const sessionEmail = data.session?.user?.email;
+      if (!cancelled && sessionEmail) {
+        setEmail((current) => current || sessionEmail);
+      }
+    }).catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [urlEmail]);
+
   const handleTrack = (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -78,7 +90,7 @@ function OrderTrackingContent() {
     }
 
     if (!email) {
-      setError('Please enter your email address for verification');
+      setError('Please enter the email or phone number you used at checkout');
       return;
     }
 
@@ -175,7 +187,7 @@ function OrderTrackingContent() {
         <div className="max-w-2xl mx-auto">
           <div className="text-center mb-8">
             <h1 className="text-4xl font-bold text-gray-900 mb-2">Track Your Order</h1>
-            <p className="text-gray-600">Enter your order number or tracking number to track your shipment</p>
+            <p className="text-gray-600">Use the order number from your confirmation text or email</p>
           </div>
 
           <div className="bg-white rounded-xl shadow-sm p-8">
@@ -189,20 +201,22 @@ function OrderTrackingContent() {
                   value={orderNumber}
                   onChange={(e) => setOrderNumber(e.target.value)}
                   className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-600 focus:border-gray-600"
-                  placeholder="e.g. ORD-1770328211911-915 or SLI-ABC123"
+                  placeholder="ORD-... or SLI-..."
                 />
               </div>
 
               <div>
                 <label className="block text-sm font-semibold text-gray-900 mb-2">
-                  Email Address <span className="text-[#FF6666] font-normal">*</span>
+                  Email or phone <span className="text-[#FF6666] font-normal">*</span>
                 </label>
                 <input
-                  type="email"
+                  type="text"
+                  inputMode="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-600 focus:border-gray-600"
-                  placeholder="you@example.com"
+                  placeholder="The email or phone you used at checkout"
+                  autoComplete="username"
                 />
               </div>
 

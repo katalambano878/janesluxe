@@ -177,6 +177,8 @@ export async function signInWithPassword(
     [row.id]
   ).catch(() => {});
 
+  await claimGuestOrders(row.id, row.email || normalized);
+
   const session = await mintSession(row);
   return { session, error: null };
 }
@@ -224,9 +226,25 @@ export async function signUpWithPassword(opts: {
     [id, email, (meta.full_name as string) || email.split("@")[0]]
   ).catch(() => {});
 
+  await claimGuestOrders(id, email);
+
   const { rows } = await query(`SELECT * FROM auth.users WHERE id = $1`, [id]);
   const session = await mintSession(rows[0]);
   return { session, user: session.user, error: null };
+}
+
+/** Attach guest checkouts to an account when the checkout email matches. */
+export async function claimGuestOrders(userId: string, email: string): Promise<number> {
+  const normalized = email.trim().toLowerCase();
+  if (!userId || !normalized.includes("@")) return 0;
+  const { rowCount } = await query(
+    `UPDATE orders
+     SET user_id = $1, updated_at = now()
+     WHERE user_id IS NULL
+       AND lower(btrim(email)) = $2`,
+    [userId, normalized]
+  );
+  return rowCount ?? 0;
 }
 
 export async function refreshSession(
