@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Only administrators can view profit margins.' }, { status: 403 });
   }
 
-  const { rows: products } = await query(
+  const products = await query(
     `SELECT p.id, p.name, p.sku, p.status::text AS status, p.price::float AS price,
             p.compare_at_price::float AS compare_at_price,
             p.quantity, p.metadata, c.name AS category,
