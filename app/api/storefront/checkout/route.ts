@@ -25,6 +25,51 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
+    const isValidUUID = (str: string) =>
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+
+    const productIds = cart.map((i: any) => i.id).filter(isValidUUID);
+    const { data: productsData } = productIds.length > 0
+      ? await supabaseAdmin.from('products').select('id, metadata, status').in('id', productIds)
+      : { data: [] };
+    const productMetaMap = new Map(
+      (productsData || [])
+        .filter((p: any) => p.status === 'active')
+        .map((p: any) => [p.id, p.metadata])
+    );
+
+    const resolvedItems: { item: any; productId: string; metadata: any }[] = [];
+    for (const item of cart) {
+      let productId = item.id;
+
+      if (!isValidUUID(productId)) {
+        const { data: product } = await supabaseAdmin
+          .from('products')
+          .select('id, metadata, status')
+          .eq('slug', productId)
+          .eq('status', 'active')
+          .single();
+
+        if (!product) {
+          return NextResponse.json(
+            { error: `${item.name || 'A product'} is no longer available. Please remove it from your cart.` },
+            { status: 400 }
+          );
+        }
+        productId = product.id;
+        productMetaMap.set(product.id, product.metadata);
+      }
+
+      if (!productMetaMap.has(productId)) {
+        return NextResponse.json(
+          { error: `${item.name || 'A product'} is no longer available. Please remove it from your cart.` },
+          { status: 400 }
+        );
+      }
+
+      resolvedItems.push({ item, productId, metadata: productMetaMap.get(productId) });
+    }
+
     // 1. Create Order
     const { data: order, error: orderError } = await supabaseAdmin
       .from('orders')
@@ -63,55 +108,20 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: orderError.message }, { status: 500 });
     }
 
-    // 2. Resolve slugs to UUIDs and build order items
-    const isValidUUID = (str: string) =>
-      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
-
-    const productIds = cart.map((i: any) => i.id).filter(isValidUUID);
-    const { data: productsData } = productIds.length > 0
-      ? await supabaseAdmin.from('products').select('id, metadata').in('id', productIds)
-      : { data: [] };
-    const productMetaMap = new Map((productsData || []).map((p: any) => [p.id, p.metadata]));
-
-    const orderItems = [];
-    for (const item of cart) {
-      let productId = item.id;
-
-      if (!isValidUUID(productId)) {
-        // Look up by slug only — never filter uuid id with a non-UUID value.
-        const { data: product } = await supabaseAdmin
-          .from('products')
-          .select('id, metadata')
-          .eq('slug', productId)
-          .single();
-
-        if (product) {
-          productId = product.id;
-          productMetaMap.set(product.id, product.metadata);
-        } else {
-          return NextResponse.json(
-            { error: `Product not found: ${item.name}. Please remove it from your cart and try again.` },
-            { status: 400 }
-          );
-        }
-      }
-
-      const prodMeta = productMetaMap.get(productId);
-      orderItems.push({
-        order_id: order.id,
-        product_id: productId,
-        product_name: item.name,
-        variant_name: item.variant || null,
-        quantity: item.quantity,
-        unit_price: item.price,
-        total_price: item.price * item.quantity,
-        metadata: {
-          image: item.image,
-          slug: item.slug,
-          preorder_shipping: prodMeta?.preorder_shipping || null,
-        },
-      });
-    }
+    const orderItems = resolvedItems.map(({ item, productId, metadata: prodMeta }) => ({
+      order_id: order.id,
+      product_id: productId,
+      product_name: item.name,
+      variant_name: item.variant || null,
+      quantity: item.quantity,
+      unit_price: item.price,
+      total_price: item.price * item.quantity,
+      metadata: {
+        image: item.image,
+        slug: item.slug,
+        preorder_shipping: prodMeta?.preorder_shipping || null,
+      },
+    }));
 
     const { error: itemsError } = await supabaseAdmin.from('order_items').insert(orderItems);
     if (itemsError) {

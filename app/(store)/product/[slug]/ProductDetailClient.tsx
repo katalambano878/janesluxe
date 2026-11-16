@@ -62,7 +62,7 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
           dataToTransform = await res.json();
         }
         if (!dataToTransform) {
-          // Fallback: client Supabase (e.g. if API not available)
+          // Fallback only for active products. Archived items must stay off the site.
           const { data: fallbackData, error } = await cachedQuery<{ data: any; error: any }>(
             `product:${slug}`,
             async () => {
@@ -73,7 +73,8 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
                   categories(name),
                   product_variants(*),
                   product_images(url, position, alt_text, media_type)
-                `);
+                `)
+                .eq('status', 'active');
               const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(slug);
               if (isUUID) query = query.or(`id.eq.${slug},slug.eq.${slug}`);
               else query = query.eq('slug', slug);
@@ -167,6 +168,7 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
               .from('products')
               .select('*, product_images(url, position), product_variants(id, name, price, quantity)')
               .eq('category_id', dataToTransform.category_id)
+              .eq('status', 'active')
               .neq('id', dataToTransform.id)
               .limit(4)) as any,
             5 * 60 * 1000
