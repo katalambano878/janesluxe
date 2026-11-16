@@ -26,7 +26,7 @@ export async function GET(request: Request) {
       .select(`
         *,
         categories(name),
-        product_variants(id),
+        product_variants(id, name, sku, quantity),
         product_images(url, position),
         branch_inventory(branch_id, quantity)
       `);

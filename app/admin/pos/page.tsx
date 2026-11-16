@@ -214,7 +214,7 @@ export default function POSPage() {
     const [processing, setProcessing] = useState(false);
     const [completedOrder, setCompletedOrder] = useState<any>(null);
     const [checkoutError, setCheckoutError] = useState<string | null>(null);
-    const [deliveryMethod, setDeliveryMethod] = useState<'pickup' | 'doorstep'>('pickup');
+    const [deliveryMethod, setDeliveryMethod] = useState<'pickup' | 'doorstep' | 'outside-accra'>('pickup');
     const [guestDetails, setGuestDetails] = useState({
         firstName: '', lastName: '', email: '', phone: '',
         address: '', city: '', region: ''
@@ -604,7 +604,7 @@ export default function POSPage() {
             if (tendered < grandTotal) return 'Insufficient amount tendered';
         }
         // Customer info is optional for POS walk-in sales
-        if (deliveryMethod === 'doorstep') {
+        if (deliveryMethod === 'doorstep' || deliveryMethod === 'outside-accra') {
             if (!guestDetails.address.trim()) return 'Delivery address is required';
             if (!guestDetails.city.trim()) return 'City is required for delivery';
             if (!guestDetails.region) return 'Region is required for delivery';
@@ -654,7 +654,7 @@ export default function POSPage() {
 
             // Postgres order_status has no "completed" — use delivered (pickup) / awaiting_payment (MoMo)
             const orderStatus = isCashOrCard
-                ? (deliveryMethod === 'doorstep' ? 'processing' : 'delivered')
+                ? (deliveryMethod === 'pickup' ? 'delivered' : 'processing')
                 : 'awaiting_payment';
 
             const res = await fetchWithTimeout('/api/admin/pos/orders', {
@@ -1264,27 +1264,39 @@ export default function POSPage() {
                                     {/* Delivery */}
                                     <div>
                                         <label className="block text-sm font-semibold text-gray-700 mb-2">Delivery Method</label>
-                                        <div className="grid grid-cols-2 gap-2">
-                                            <button onClick={() => setDeliveryMethod('pickup')}
+                                        <div className="grid grid-cols-1 gap-2">
+                                            <button type="button" onClick={() => setDeliveryMethod('pickup')}
                                                 className={`p-2.5 rounded-lg border transition-all flex items-center gap-2 ${
                                                     deliveryMethod === 'pickup' ? 'border-gray-700 bg-gray-50 ring-1 ring-gray-700' : 'border-gray-200 hover:border-gray-300'
                                                 }`}>
                                                 <i className={`ri-store-2-line text-lg ${deliveryMethod === 'pickup' ? 'text-gray-900' : 'text-gray-400'}`} />
                                                 <div className="text-left">
-                                                    <p className={`text-sm font-semibold ${deliveryMethod === 'pickup' ? 'text-gray-800' : 'text-gray-700'}`}>Pickup</p>
+                                                    <p className={`text-sm font-semibold ${deliveryMethod === 'pickup' ? 'text-gray-800' : 'text-gray-700'}`}>Store Pickup</p>
+                                                    <p className="text-xs text-gray-500">Customer picks up</p>
                                                 </div>
                                             </button>
-                                            <button onClick={() => setDeliveryMethod('doorstep')}
+                                            <button type="button" onClick={() => setDeliveryMethod('doorstep')}
                                                 className={`p-2.5 rounded-lg border transition-all flex items-center gap-2 ${
                                                     deliveryMethod === 'doorstep' ? 'border-gray-700 bg-gray-50 ring-1 ring-gray-700' : 'border-gray-200 hover:border-gray-300'
                                                 }`}>
                                                 <i className={`ri-truck-line text-lg ${deliveryMethod === 'doorstep' ? 'text-gray-900' : 'text-gray-400'}`} />
                                                 <div className="text-left">
-                                                    <p className={`text-sm font-semibold ${deliveryMethod === 'doorstep' ? 'text-gray-800' : 'text-gray-700'}`}>Delivery</p>
+                                                    <p className={`text-sm font-semibold ${deliveryMethod === 'doorstep' ? 'text-gray-800' : 'text-gray-700'}`}>Doorstep Delivery</p>
+                                                    <p className="text-xs text-gray-500">Inside Accra</p>
+                                                </div>
+                                            </button>
+                                            <button type="button" onClick={() => setDeliveryMethod('outside-accra')}
+                                                className={`p-2.5 rounded-lg border transition-all flex items-center gap-2 ${
+                                                    deliveryMethod === 'outside-accra' ? 'border-gray-700 bg-gray-50 ring-1 ring-gray-700' : 'border-gray-200 hover:border-gray-300'
+                                                }`}>
+                                                <i className={`ri-map-pin-line text-lg ${deliveryMethod === 'outside-accra' ? 'text-gray-900' : 'text-gray-400'}`} />
+                                                <div className="text-left">
+                                                    <p className={`text-sm font-semibold ${deliveryMethod === 'outside-accra' ? 'text-gray-800' : 'text-gray-700'}`}>Outside Accra</p>
+                                                    <p className="text-xs text-gray-500">Delivery outside Accra</p>
                                                 </div>
                                             </button>
                                         </div>
-                                        {deliveryMethod === 'doorstep' && (
+                                        {(deliveryMethod === 'doorstep' || deliveryMethod === 'outside-accra') && (
                                             <div className="mt-2 bg-blue-50 p-3 rounded-lg border border-blue-200 space-y-2">
                                                 <input type="text" placeholder="Street Address *" value={guestDetails.address}
                                                     onChange={e => setGuestDetails({ ...guestDetails, address: e.target.value })}

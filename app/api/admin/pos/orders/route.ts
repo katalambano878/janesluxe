@@ -23,6 +23,10 @@ const VALID_PAYMENT_STATUS = new Set([
   'partially_refunded',
 ]);
 
+function needsDelivery(method: string): boolean {
+  return method === 'doorstep' || method === 'delivery' || method === 'outside-accra' || method === 'outside_accra';
+}
+
 /** Map legacy / UI statuses onto the Postgres order_status enum. */
 function normalizeOrderStatus(
   raw: unknown,
@@ -31,15 +35,11 @@ function normalizeOrderStatus(
   const s = String(raw || '').toLowerCase().trim();
   if (s === 'completed' || s === 'complete' || s === 'done' || s === 'fulfilled') {
     // Immediate POS fulfillment
-    return opts.shippingMethod === 'doorstep' || opts.shippingMethod === 'delivery'
-      ? 'processing'
-      : 'delivered';
+    return needsDelivery(opts.shippingMethod) ? 'processing' : 'delivered';
   }
   if (VALID_ORDER_STATUS.has(s)) return s;
   if (opts.paid) {
-    return opts.shippingMethod === 'doorstep' || opts.shippingMethod === 'delivery'
-      ? 'processing'
-      : 'delivered';
+    return needsDelivery(opts.shippingMethod) ? 'processing' : 'delivered';
   }
   return 'awaiting_payment';
 }

@@ -109,11 +109,42 @@ const wasPaidOnAnotherAttempt = (order: any, paidOrders: any[]) => {
   );
 };
 
+type SourceFilter = 'all' | 'website' | 'pos' | 'pickup' | 'doorstep' | 'outside-accra';
+
+const SOURCE_TABS: { key: SourceFilter; label: string; icon: string }[] = [
+  { key: 'all', label: 'All', icon: 'ri-list-check' },
+  { key: 'website', label: 'Website', icon: 'ri-global-line' },
+  { key: 'pos', label: 'POS', icon: 'ri-store-2-line' },
+  { key: 'pickup', label: 'Store Pickup', icon: 'ri-store-3-line' },
+  { key: 'doorstep', label: 'Doorstep Delivery', icon: 'ri-truck-line' },
+  { key: 'outside-accra', label: 'Outside Accra', icon: 'ri-map-pin-line' },
+];
+
+function isPosOrder(order: { metadata?: any; shipping_address?: any }): boolean {
+  const flag = order.metadata?.pos_sale ?? order.shipping_address?.pos_sale;
+  return flag === true || flag === 'true';
+}
+
+/** Collapse older shipping labels onto the three fulfillment tabs. Blank counts as pickup. */
+function fulfillmentKey(method?: string | null): 'pickup' | 'doorstep' | 'outside-accra' {
+  const raw = String(method || '').trim().toLowerCase();
+  if (raw === 'outside-accra' || raw === 'outside_accra') return 'outside-accra';
+  if (raw === 'doorstep' || raw === 'delivery' || raw === 'home_delivery' || raw === 'accra') return 'doorstep';
+  return 'pickup';
+}
+
+function matchesSource(order: Order, filter: SourceFilter): boolean {
+  if (filter === 'all') return true;
+  if (filter === 'pos') return isPosOrder(order);
+  if (filter === 'website') return !isPosOrder(order);
+  return fulfillmentKey(order.shipping_method) === filter;
+}
+
 export default function AdminOrdersPage() {
   const { selectedBranch, loading: branchLoading } = useAdminBranch();
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
-  const [shippingFilter, setShippingFilter] = useState('all');
+  const [sourceFilter, setSourceFilter] = useState<SourceFilter>('all');
   const [selectedOrders, setSelectedOrders] = useState<string[]>([]);
   const [showFilters, setShowFilters] = useState(false);
   const [sortBy, setSortBy] = useState('date');
@@ -121,17 +152,6 @@ export default function AdminOrdersPage() {
   const [loading, setLoading] = useState(true);
   const [orderViewTab, setOrderViewTab] = useState<'confirmed' | 'abandoned'>('confirmed');
   const [sendingPaymentLink, setSendingPaymentLink] = useState<string | null>(null);
-  const [orderStats, setOrderStats] = useState<OrderStats[]>([
-    { label: 'All Confirmed', count: 0, status: 'all' },
-    { label: 'Processing', count: 0, status: 'processing' },
-    { label: 'Packaged', count: 0, status: 'shipped' },
-    { label: 'Dispatched To Rider', count: 0, status: 'dispatched_to_rider' },
-    { label: 'Delivered', count: 0, status: 'delivered' },
-    { label: 'Cancelled', count: 0, status: 'cancelled' }
-  ]);
-  const [abandonedCount, setAbandonedCount] = useState(0);
-  const [justPlacedCount, setJustPlacedCount] = useState(0);
-  const [confirmedCount, setConfirmedCount] = useState(0);
   const [paidOrders, setPaidOrders] = useState<any[]>([]);
   const [missingFromView, setMissingFromView] = useState(0);
   const [showProductStats, setShowProductStats] = useState(false);
@@ -178,24 +198,7 @@ export default function AdminOrdersPage() {
 
       // Confirmed = payment received. Abandoned cart = checkout started, unpaid.
       const allOrders = ordersData || [];
-      const paid = allOrders.filter((o: any) => o.payment_status === 'paid');
-      const unpaid = allOrders.filter(isUnpaid);
-
-      setPaidOrders(paid);
-      setConfirmedCount(paid.length);
-      setAbandonedCount(unpaid.length);
-      setJustPlacedCount(unpaid.filter(isJustPlaced).length);
-
-      // Status cards only count paid (confirmed) orders
-      const stats = [
-        { label: 'All Confirmed', count: paid.length, status: 'all' },
-        { label: 'Processing', count: paid.filter((o: any) => o.status === 'processing').length, status: 'processing' },
-        { label: 'Packaged', count: paid.filter((o: any) => o.status === 'shipped').length, status: 'shipped' },
-        { label: 'Dispatched To Rider', count: paid.filter((o: any) => o.status === 'dispatched_to_rider').length, status: 'dispatched_to_rider' },
-        { label: 'Delivered', count: paid.filter((o: any) => o.status === 'delivered').length, status: 'delivered' },
-        { label: 'Cancelled', count: paid.filter((o: any) => o.status === 'cancelled').length, status: 'cancelled' }
-      ];
-      setOrderStats(stats);
+      setPaidOrders(allOrders.filter((o: any) => o.payment_status === 'paid'));
 
     } catch (error) {
       console.error('Error fetching orders:', error);
@@ -403,17 +406,26 @@ export default function AdminOrdersPage() {
 
     const matchesSearch = orderMatchesSearch(order, searchQuery, customerName, customerEmail);
     const matchesStatus = statusFilter === 'all' || order.status === statusFilter;
-    const method = String(order.shipping_method || '').toLowerCase();
-    const matchesShipping =
-      shippingFilter === 'all' ||
-      (shippingFilter === 'pickup' && (method === 'pickup' || method === 'store_pickup' || method === 'store-pickup')) ||
-      (shippingFilter === 'delivery' && method && method !== 'pickup' && method !== 'store_pickup' && method !== 'store-pickup') ||
-      (shippingFilter === 'unspecified' && !method) ||
-      method === shippingFilter;
     const matchesProduct = productFilter === 'all' || 
       order.order_items?.some((item: any) => item.product_name === productFilter);
-    return matchesViewTab && matchesSearch && matchesStatus && matchesShipping && matchesProduct;
+    return matchesViewTab && matchesSearch && matchesStatus && matchesSource(order, sourceFilter) && matchesProduct;
   });
+
+  // Status cards and the two tabs follow the channel pill, so the numbers match the list.
+  const sourceOrders = orders.filter((order) => matchesSource(order, sourceFilter));
+  const sourcePaid = sourceOrders.filter((order) => order.payment_status === 'paid');
+  const sourceUnpaid = sourceOrders.filter(isUnpaid);
+  const viewConfirmedCount = sourcePaid.length;
+  const viewAbandonedCount = sourceUnpaid.length;
+  const viewJustPlacedCount = sourceUnpaid.filter(isJustPlaced).length;
+  const viewStats: OrderStats[] = [
+    { label: 'All Confirmed', count: sourcePaid.length, status: 'all' },
+    { label: 'Processing', count: sourcePaid.filter((order) => order.status === 'processing').length, status: 'processing' },
+    { label: 'Packaged', count: sourcePaid.filter((order) => order.status === 'shipped').length, status: 'shipped' },
+    { label: 'Dispatched To Rider', count: sourcePaid.filter((order) => order.status === 'dispatched_to_rider').length, status: 'dispatched_to_rider' },
+    { label: 'Delivered', count: sourcePaid.filter((order) => order.status === 'delivered').length, status: 'delivered' },
+    { label: 'Cancelled', count: sourcePaid.filter((order) => order.status === 'cancelled').length, status: 'cancelled' },
+  ];
 
   // A search that hits nothing here but matches in the other tab is the usual
   // reason an order looks missing, so point staff at it instead of dead-ending.
@@ -424,6 +436,7 @@ export default function AdminOrdersPage() {
           orderViewTab === 'confirmed' ? order.payment_status !== 'paid' : order.payment_status === 'paid';
         return (
           inOtherTab &&
+          matchesSource(order, sourceFilter) &&
           orderMatchesSearch(
             order,
             searchQuery,
@@ -498,7 +511,7 @@ export default function AdminOrdersPage() {
           }`}
         >
           <i className="ri-check-double-line mr-2"></i>
-          Confirmed Orders ({confirmedCount})
+          Confirmed Orders ({viewConfirmedCount})
         </button>
         <button
           onClick={() => { setOrderViewTab('abandoned'); setStatusFilter('all'); setSelectedOrders([]); }}
@@ -509,8 +522,27 @@ export default function AdminOrdersPage() {
           }`}
         >
           <i className="ri-shopping-cart-2-line mr-2"></i>
-          Abandoned Cart ({abandonedCount})
+          Abandoned Cart ({viewAbandonedCount})
         </button>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-sm font-medium text-gray-500 mr-1">Show:</span>
+        {SOURCE_TABS.map(({ key, label, icon }) => (
+          <button
+            key={key}
+            type="button"
+            onClick={() => { setSourceFilter(key); setSelectedOrders([]); }}
+            className={`px-4 py-1.5 rounded-full text-sm font-semibold border-2 transition-all cursor-pointer ${
+              sourceFilter === key
+                ? 'bg-gray-900 border-gray-900 text-white'
+                : 'bg-white border-gray-200 text-gray-600 hover:border-gray-400'
+            }`}
+          >
+            <i className={`${icon} mr-1.5`} />
+            {label}
+          </button>
+        ))}
       </div>
 
       {orderViewTab === 'confirmed' && (
@@ -527,7 +559,7 @@ export default function AdminOrdersPage() {
             </div>
           </div>
 
-          {justPlacedCount > 0 && (
+          {viewJustPlacedCount > 0 && (
             <button
               onClick={() => { setOrderViewTab('abandoned'); setStatusFilter('all'); setSelectedOrders([]); }}
               className="w-full text-left bg-blue-50 border border-blue-200 rounded-lg p-4 hover:bg-blue-100 transition-colors cursor-pointer"
@@ -536,7 +568,7 @@ export default function AdminOrdersPage() {
                 <i className="ri-notification-3-line text-xl text-blue-600 mt-0.5"></i>
                 <div>
                   <p className="text-sm font-semibold text-blue-800">
-                    {justPlacedCount} order{justPlacedCount > 1 ? 's' : ''} placed in the last 2 hours still paying
+                    {viewJustPlacedCount} order{viewJustPlacedCount > 1 ? 's' : ''} placed in the last 2 hours still paying
                   </p>
                   <p className="text-sm text-blue-700 mt-1">
                     They appear here automatically once the money lands. Tap to see them in Abandoned Cart.
@@ -546,7 +578,7 @@ export default function AdminOrdersPage() {
             </button>
           )}
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-            {orderStats.map((stat) => (
+            {viewStats.map((stat) => (
               <button
                 key={stat.status}
                 onClick={() => setStatusFilter(stat.status)}
@@ -638,20 +670,6 @@ export default function AdminOrdersPage() {
                   <option>Mobile Money</option>
                   <option>Card</option>
                   <option>Cash on Delivery</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Fulfillment</label>
-                <select
-                  value={shippingFilter}
-                  onChange={(e) => setShippingFilter(e.target.value)}
-                  className="w-full px-3 py-2 pr-8 border-2 border-gray-300 rounded-lg text-sm cursor-pointer"
-                >
-                  <option value="all">All methods</option>
-                  <option value="pickup">Store Pickup</option>
-                  <option value="delivery">Delivery (any)</option>
-                  <option value="doorstep">Doorstep Delivery</option>
-                  <option value="unspecified">Not specified</option>
                 </select>
               </div>
             </div>
@@ -763,6 +781,18 @@ export default function AdminOrdersPage() {
                       <Link href={`/admin/orders/${order.id}`} className="text-gray-900 hover:text-gray-800 font-semibold whitespace-nowrap cursor-pointer">
                         {order.order_number || order.id.substring(0, 8)}
                       </Link>
+                      {isPosOrder(order) ? (
+                        <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-xs font-bold bg-gray-100 text-gray-800 border border-gray-200">
+                          <i className="ri-store-2-line mr-1" />POS
+                        </span>
+                      ) : (
+                        <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-xs font-bold bg-gray-50 text-gray-600 border border-gray-200">
+                          <i className="ri-global-line mr-1" />Web
+                        </span>
+                      )}
+                      {(order.metadata?.sold_by_name || order.metadata?.cashier) && (
+                        <p className="text-xs text-gray-500 mt-1">Sold by {order.metadata.sold_by_name || order.metadata.cashier}</p>
+                      )}
                       {!selectedBranch && order.branches?.name && (
                         <p className="text-xs text-gray-500 mt-0.5 whitespace-nowrap">
                           <i className="ri-store-2-line mr-1"></i>
@@ -882,7 +912,7 @@ export default function AdminOrdersPage() {
           <div className="p-6 border-t border-gray-200 flex items-center justify-between">
             <p className="text-gray-600">
               Showing {filteredOrders.length} of{' '}
-              {orderViewTab === 'confirmed' ? confirmedCount : abandonedCount}{' '}
+              {orderViewTab === 'confirmed' ? viewConfirmedCount : viewAbandonedCount}{' '}
               {orderViewTab === 'confirmed' ? 'confirmed orders' : 'abandoned carts'}
             </p>
           </div>

@@ -1,5 +1,7 @@
 'use client';
 
+import '../admin-fields.css';
+
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
@@ -388,6 +390,36 @@ export default function AdminLayout({
       icon: 'ri-stack-line',
       path: '/admin/inventory',
       permissionKey: 'inventory'
+    },
+    {
+      title: 'Live shoppers',
+      icon: 'ri-pulse-line',
+      path: '/admin/live',
+    },
+    {
+      title: 'End of Day',
+      icon: 'ri-calendar-check-line',
+      path: '/admin/end-of-day',
+    },
+    {
+      title: 'Sale & discounts',
+      icon: 'ri-price-tag-3-line',
+      path: '/admin/sales',
+    },
+    {
+      title: 'Products sold',
+      icon: 'ri-shopping-basket-line',
+      path: '/admin/sold',
+    },
+    {
+      title: 'Expenses',
+      icon: 'ri-file-list-3-line',
+      path: '/admin/expenses',
+    },
+    {
+      title: 'Profit margins',
+      icon: 'ri-scales-3-line',
+      path: '/admin/profit',
     },
     {
       title: 'Branches',

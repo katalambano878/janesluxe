@@ -168,9 +168,13 @@ export async function POST(request: Request) {
             if (!recipients || !Array.isArray(recipients) || recipients.length === 0) {
                 return NextResponse.json({ error: 'Recipients required' }, { status: 400 });
             }
-            if (!subject || !message) {
-                return NextResponse.json({ error: 'Subject and message required' }, { status: 400 });
-            }
+        // SMS uses the message only. A subject is required when the email channel is on.
+        if (!message || (channels?.email && !subject)) {
+            return NextResponse.json(
+                { error: channels?.email ? 'Subject and message required' : 'Message required' },
+                { status: 400 }
+            );
+        }
 
             // Deduplicate phone numbers and emails server-side
             const seenPhones = new Set<string>();
@@ -178,7 +182,7 @@ export async function POST(request: Request) {
             const results = { email: 0, sms: 0, errors: 0 };
 
             // SECURITY: Sanitize subject and message to prevent XSS in emails
-            const safeSubject = escapeHtml(subject);
+            const safeSubject = escapeHtml(subject || '');
             const safeMessage = escapeHtml(message);
 
             for (const recipient of recipients) {

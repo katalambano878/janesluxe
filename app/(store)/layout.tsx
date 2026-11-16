@@ -15,6 +15,7 @@ import OfflineIndicator from '@/components/OfflineIndicator';
 import NetworkStatusMonitor from '@/components/NetworkStatusMonitor';
 import UpdatePrompt from '@/components/UpdatePrompt';
 import LiveSalesNotification from '@/components/LiveSalesNotification';
+import LiveShopperPing from '@/components/LiveShopperPing';
 import ChatWidget from '@/components/ChatWidget';
 
 import { CMSProvider } from '@/context/CMSContext';
@@ -97,6 +98,7 @@ export default function StoreLayout({
         <NetworkStatusMonitor />
         <UpdatePrompt />
         <LiveSalesNotification />
+        <LiveShopperPing />
 
         {shouldShowChat && <ChatWidget />}
       </div>
