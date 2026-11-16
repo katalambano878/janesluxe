@@ -2,7 +2,33 @@
 
 import { useState, useTransition } from 'react';
 import { testSmsAction } from './actions';
-import { supabase } from '@/lib/supabase';
+
+function readAccessTokenFromCookies(): string {
+    if (typeof document === 'undefined') return '';
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+    const projectRef = supabaseUrl.split('//')[1]?.split('.')[0] || '';
+    const names = [
+        projectRef ? `sb-${projectRef}-access-token` : '',
+        'sb-access-token',
+        'sb-www-access-token',
+        'sb-janesluxe-access-token',
+    ].filter(Boolean);
+    for (const name of names) {
+        const match = document.cookie
+            .split(';')
+            .map((c) => c.trim())
+            .find((c) => c.startsWith(`${name}=`));
+        if (match) {
+            return decodeURIComponent(match.split('=').slice(1).join('='));
+        }
+    }
+    for (const chunk of document.cookie.split(';').map((c) => c.trim())) {
+        if (chunk.startsWith('sb-') && chunk.includes('-access-token=')) {
+            return decodeURIComponent(chunk.split('=').slice(1).join('='));
+        }
+    }
+    return '';
+}
 
 export default function TestSmsPage() {
     const [isPending, startTransition] = useTransition();
@@ -13,10 +39,8 @@ export default function TestSmsPage() {
     const handleSend = () => {
         setResult(null);
         startTransition(async () => {
-            // Get auth token to pass to server action
-            const { data: { session } } = await supabase.auth.getSession();
-            const token = session?.access_token || '';
-            const res = await testSmsAction(phone, message, token);
+            const token = readAccessTokenFromCookies();
+            const res = await testSmsAction(phone, message, token || undefined);
             setResult(res);
         });
     };

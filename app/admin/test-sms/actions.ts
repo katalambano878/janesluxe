@@ -1,10 +1,28 @@
 'use server';
 
-import { verifyAdminToken } from '@/lib/auth';
+import { cookies } from 'next/headers';
+import { verifyAdminToken, verifyAuth } from '@/lib/auth';
 
-export async function testSmsAction(phone: string, message: string, authToken: string) {
-    // SECURITY: Verify admin authentication before allowing SMS sending
-    const auth = await verifyAdminToken(authToken);
+function requestFromSessionCookies(
+    cookieStore: Awaited<ReturnType<typeof cookies>>
+): Request {
+    const cookieHeader = cookieStore
+        .getAll()
+        .map((c) => `${c.name}=${c.value}`)
+        .join('; ');
+    return new Request('http://localhost', { headers: { cookie: cookieHeader } });
+}
+
+export async function testSmsAction(phone: string, message: string, authToken?: string) {
+    // SECURITY: Verify admin authentication before allowing SMS sending.
+    // Prefer HttpOnly-capable session cookies (admin login API); client-passed
+    // tokens are a fallback when supabase.auth.getSession() is empty on plain Postgres.
+    let auth = authToken
+        ? await verifyAdminToken(authToken)
+        : await verifyAuth(requestFromSessionCookies(await cookies()), { requireAdmin: true });
+    if (!auth.authenticated && authToken) {
+        auth = await verifyAuth(requestFromSessionCookies(await cookies()), { requireAdmin: true });
+    }
     if (!auth.authenticated) {
         return {
             success: false,
