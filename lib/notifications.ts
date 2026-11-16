@@ -127,7 +127,7 @@ const TAYSEND_FAILED_STATUSES = new Set(["failed", "rejected", "undelivered", "e
 
 async function sendViaTaysend(to: string, message: string, senderFallback?: string) {
     const apiKey = process.env.TAYSEND_API_KEY?.trim();
-    const from = (process.env.TAYSEND_SENDER_ID || senderFallback || process.env.MOOLRE_SMS_SENDER_ID || "").trim();
+    const from = (process.env.TAYSEND_SENDER_ID || senderFallback || process.env.SMS_SENDER_ID || process.env.MOOLRE_SMS_SENDER_ID || "").trim();
     if (!apiKey || !from) return null;
     try {
         const response = await fetch(`${TAYSEND_SMS_URL}/v1/messages`, {
@@ -150,6 +150,43 @@ async function sendViaTaysend(to: string, message: string, senderFallback?: stri
     } catch (error: any) {
         console.warn("[SMS] Taysend failed, falling back:", error?.message || error);
         return null;
+    }
+}
+
+/** Sends from the Buy SMS balance. Does not fall back to another provider. */
+export async function sendWalletSMS(to: string, message: string) {
+    const recipient = formatPhoneNumber(to);
+    const apiKey = process.env.TAYSEND_API_KEY?.trim();
+    const from = (process.env.TAYSEND_SENDER_ID || process.env.SMS_SENDER_ID || process.env.MOOLRE_SMS_SENDER_ID || "").trim();
+    if (!apiKey || !from) {
+        return { success: false as const, error: 'The Buy SMS balance is not connected on this store.' };
+    }
+    try {
+        const response = await fetch(`${TAYSEND_SMS_URL}/v1/messages`, {
+            method: "POST",
+            headers: {
+                Authorization: `Bearer ${apiKey}`,
+                "Content-Type": "application/json",
+                "Idempotency-Key": crypto.randomUUID(),
+            },
+            body: JSON.stringify({ to: recipient, sender_id: from, message, type: "transactional" }),
+            signal: AbortSignal.timeout(15000),
+        });
+        const result: any = await response.json().catch(() => null);
+        const status = String(result?.status || "").toLowerCase();
+        if (response.ok && result?.id && !TAYSEND_FAILED_STATUSES.has(status)) {
+            return {
+                success: true as const,
+                provider: "taysend",
+                formattedPhone: recipient,
+                messageId: result.id,
+                result,
+            };
+        }
+        const reason = result?.error?.message || result?.error || status || `The balance could not send that text (${response.status}).`;
+        return { success: false as const, error: String(reason), formattedPhone: recipient, result };
+    } catch (error: any) {
+        return { success: false as const, error: error?.message || 'The SMS balance could not be reached.' };
     }
 }
 
