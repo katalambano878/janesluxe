@@ -10,6 +10,7 @@ import { fetchWithTimeout, readJsonSafe, TimeoutError } from '@/lib/http';
 import BrandLogo from '@/components/BrandLogo';
 import { AdminBranchProvider } from '@/context/AdminBranchContext';
 import AdminBranchSwitcher from '@/components/admin/AdminBranchSwitcher';
+import { SmsCreditDashboardCard } from '@/components/admin/SmsCreditDashboardCard';
 
 export default function AdminLayout({
   children,
@@ -595,6 +596,7 @@ export default function AdminLayout({
           </div>
         </header>
 
+        <SmsCreditDashboardCard />
         <main className="p-4 lg:p-6">
           {children}
         </main>

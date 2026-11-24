@@ -1,6 +1,5 @@
 'use client';
 
-import { SmsCreditDashboardCard } from '@/components/admin/SmsCreditDashboardCard';
 import type { DashboardSmsCredit } from '@/lib/sms-credit-types';
 
 import Link from 'next/link';
@@ -265,8 +264,7 @@ export default function AdminDashboardClient({ smsCredit }: { smsCredit: Dashboa
               <p className="text-gray-600 text-sm">{stat.title}</p>
             </div>
           ))}
-          <SmsCreditDashboardCard smsCredit={smsCredit} />
-        </div>
+</div>
 
         {/* Revenue Chart & Quick Actions */}
         <div className="grid lg:grid-cols-3 gap-6 mb-8">
