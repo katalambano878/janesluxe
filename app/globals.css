@@ -13,6 +13,8 @@
     --brand-ivory: #FFF9F5;
     --brand-text: #6B5246;
     --brand-champagne: #D8B48A;
+    --font-manrope: "Manrope", sans-serif;
+    --font-playfair: "Playfair Display", serif;
   }
 
   body {

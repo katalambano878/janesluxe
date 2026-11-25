@@ -1,24 +1,9 @@
 import type { Metadata } from "next";
 import Script from "next/script";
-import { Manrope, Playfair_Display } from "next/font/google";
 import { CartProvider } from "@/context/CartContext";
 import { WishlistProvider } from "@/context/WishlistContext";
 import { buildRootMetadata, organizationJsonLd, SEO } from "@/lib/seo";
 import "./globals.css";
-
-const manrope = Manrope({
-  weight: ["400", "500", "600", "700"],
-  subsets: ["latin"],
-  variable: "--font-manrope",
-  display: "swap",
-});
-
-const playfair = Playfair_Display({
-  weight: ["500", "600", "700"],
-  subsets: ["latin"],
-  variable: "--font-playfair",
-  display: "swap",
-});
 
 export const metadata: Metadata = buildRootMetadata();
 
@@ -54,6 +39,12 @@ export default function RootLayout({
           href="https://cdn.jsdelivr.net/npm/remixicon@4.1.0/fonts/remixicon.css"
           rel="stylesheet"
         />
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
+        <link
+          href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&family=Playfair+Display:wght@500;600;700&display=swap"
+          rel="stylesheet"
+        />
 
         <script
           type="application/ld+json"
@@ -87,7 +78,7 @@ export default function RootLayout({
         />
       )}
 
-      <body className={`antialiased overflow-x-hidden pwa-body ${manrope.variable} ${playfair.variable} font-sans`}>
+      <body className="antialiased overflow-x-hidden pwa-body font-sans">
         <a
           href="#main-content"
           className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-[10000] focus:px-6 focus:py-3 focus:bg-brand-text focus:text-white focus:rounded-lg focus:font-semibold focus:shadow-lg"
