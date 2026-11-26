@@ -5,6 +5,8 @@ import {
 } from "@/lib/db/supabase-compat";
 import { isPlainPostgres } from "@/lib/db/mode";
 
+import { guardTable } from "@/lib/db/rest-guard";
+
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
@@ -45,7 +47,7 @@ export async function OPTIONS() {
   return new NextResponse(null, { status: 204, headers: corsHeaders() });
 }
 
-export async function GET(
+async function getUnguarded(
   req: NextRequest,
   ctx: { params: Promise<{ table: string }> }
 ) {
@@ -90,7 +92,7 @@ export async function GET(
   return NextResponse.json(result.data ?? [], { status: 200, headers });
 }
 
-export async function POST(
+async function postUnguarded(
   req: NextRequest,
   ctx: { params: Promise<{ table: string }> }
 ) {
@@ -119,7 +121,7 @@ export async function POST(
   });
 }
 
-export async function PATCH(
+async function patchUnguarded(
   req: NextRequest,
   ctx: { params: Promise<{ table: string }> }
 ) {
@@ -146,7 +148,7 @@ export async function PATCH(
   return NextResponse.json(result.data, { status: 200, headers: corsHeaders() });
 }
 
-export async function DELETE(
+async function deleteUnguarded(
   req: NextRequest,
   ctx: { params: Promise<{ table: string }> }
 ) {
@@ -168,3 +170,8 @@ export async function DELETE(
 
   return NextResponse.json(result.data ?? null, { status: 200, headers: corsHeaders() });
 }
+
+export const GET = guardTable("GET", getUnguarded);
+export const POST = guardTable("POST", postUnguarded);
+export const PATCH = guardTable("PATCH", patchUnguarded);
+export const DELETE = guardTable("DELETE", deleteUnguarded);
